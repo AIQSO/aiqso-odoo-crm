@@ -67,6 +67,11 @@ ignore = [
     "S603",   # subprocess untrusted input (scripts are CLI tools)
     "S607",   # partial executable path (acceptable in scripts)
 ]
+"tests/*.py" = [
+    "S101",   # use of assert (expected in tests)
+    "S105",   # hardcoded passwords (test fixtures)
+    "S106",   # hardcoded password argument (test fixtures)
+]
 
 [tool.ruff.lint.isort]
 known-first-party = ["config"]
