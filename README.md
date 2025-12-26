@@ -1,6 +1,7 @@
 ## AIQSO Odoo CRM Automation
 
 [![CI](https://github.com/qvidal01/aiqso-odoo-crm/actions/workflows/ci.yml/badge.svg)](https://github.com/qvidal01/aiqso-odoo-crm/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/qvidal01/aiqso-odoo-crm/graph/badge.svg)](https://codecov.io/gh/qvidal01/aiqso-odoo-crm)
 
 Utility scripts for importing and syncing lead data into an Odoo 17 CRM instance via XML-RPC.
 
