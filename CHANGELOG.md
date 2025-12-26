@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2025-12-26
+
+### Added
+- Unit tests for `scripts/import_lead_list.py` with 83% coverage (32 tests)
+- Unit tests for `scripts/sync_enriched_leads.py` with 86% coverage (43 tests)
+- Unit tests for `scripts/import_commercial_leads.py` with 92% coverage (49 tests)
+- Total test count: 144 tests with 87% overall coverage
+
+### Changed
+- Comprehensive test coverage for all major script modules
+- Improved mock patterns for XML-RPC and PostgreSQL connections
+
 ## [0.3.0] - 2025-12-26
 
 ### Added
