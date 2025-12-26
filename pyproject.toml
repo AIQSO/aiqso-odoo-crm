@@ -1,6 +1,6 @@
 [project]
 name = "aiqso-odoo-crm"
-version = "0.2.0"
+version = "0.3.0"
 description = "Utility scripts for importing and syncing lead data into Odoo 17 CRM via XML-RPC"
 readme = "README.md"
 requires-python = ">=3.10"

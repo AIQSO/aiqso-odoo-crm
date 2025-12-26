@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-12-26
+
+### Added
+- Unit tests for `scripts/config.py` with 100% coverage (20 tests)
+- Code coverage reporting with pytest-cov
+- Codecov integration for coverage tracking
+- CI and Codecov badges in README
+
+### Changed
+- CI pipeline now runs coverage on Python 3.11 and uploads to Codecov
+- Added test-specific ruff ignores (S101, S105, S106)
+
 ## [0.2.0] - 2025-12-26
 
 ### Added
