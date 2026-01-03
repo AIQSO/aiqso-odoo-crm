@@ -1,0 +1,159 @@
+name: Scheduled Backup
+
+on:
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      backup_type:
+        description: 'Type of backup'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - odoo
+          - n8n
+
+env:
+  BACKUP_RETENTION_DAYS: 30
+  NAS_HOST: 192.168.0.25
+  NAS_USER: dunkin
+  PROXMOX_HOST: 192.168.0.165
+  PROXMOX_USER: dunkin
+
+jobs:
+  backup-odoo:
+    name: Backup Odoo Database
+    runs-on: self-hosted
+    if: inputs.backup_type != 'n8n'
+    steps:
+      - name: Create backup directory
+        run: mkdir -p /tmp/backups
+
+      - name: Backup Odoo PostgreSQL database
+        run: |
+          BACKUP_FILE="odoo_backup_$(date +%Y%m%d_%H%M%S).sql.gz"
+          ssh "$PROXMOX_USER@$PROXMOX_HOST" \
+            "pct exec 230 -- pg_dump -U odoo odoo | gzip" > "/tmp/backups/$BACKUP_FILE"
+          echo "Created backup: $BACKUP_FILE"
+          ls -lh "/tmp/backups/$BACKUP_FILE"
+
+      - name: Copy backup to NAS
+        run: |
+          ssh "$NAS_USER@$NAS_HOST" "mkdir -p /volume1/backups/odoo"
+          scp /tmp/backups/odoo_backup_*.sql.gz "$NAS_USER@$NAS_HOST:/volume1/backups/odoo/"
+          echo "Backup copied to NAS"
+
+      - name: Cleanup local backup
+        run: rm -rf /tmp/backups
+
+      - name: Verify backup on NAS
+        run: |
+          ssh "$NAS_USER@$NAS_HOST" "ls -lht /volume1/backups/odoo/ | head -5"
+
+  backup-n8n:
+    name: Backup n8n Workflows
+    runs-on: self-hosted
+    if: inputs.backup_type != 'odoo'
+    env:
+      N8N_URL: ${{ secrets.N8N_URL }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+    steps:
+      - name: Create backup directory
+        run: mkdir -p /tmp/backups
+
+      - name: Export all n8n workflows
+        run: |
+          BACKUP_FILE="n8n_workflows_$(date +%Y%m%d_%H%M%S).json"
+          curl -s "$N8N_URL/api/v1/workflows?limit=500" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            > "/tmp/backups/$BACKUP_FILE"
+          if jq empty "/tmp/backups/$BACKUP_FILE" 2>/dev/null; then
+            WORKFLOW_COUNT=$(jq '.data | length' "/tmp/backups/$BACKUP_FILE")
+            echo "Exported $WORKFLOW_COUNT workflows"
+          else
+            echo "Error: Invalid JSON response"
+            exit 1
+          fi
+
+      - name: Export n8n credentials metadata
+        run: |
+          CREDS_FILE="n8n_credentials_$(date +%Y%m%d_%H%M%S).json"
+          curl -s "$N8N_URL/api/v1/credentials" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" \
+            > "/tmp/backups/$CREDS_FILE"
+          echo "Exported credentials metadata"
+
+      - name: Copy backup to NAS
+        run: |
+          ssh "$NAS_USER@$NAS_HOST" "mkdir -p /volume1/backups/n8n"
+          scp /tmp/backups/n8n_*.json "$NAS_USER@$NAS_HOST:/volume1/backups/n8n/"
+          echo "Backups copied to NAS"
+
+      - name: Cleanup local backup
+        run: rm -rf /tmp/backups
+
+      - name: Verify backup on NAS
+        run: |
+          ssh "$NAS_USER@$NAS_HOST" "ls -lht /volume1/backups/n8n/ | head -5"
+
+  cleanup-old-backups:
+    name: Cleanup Old Backups
+    runs-on: self-hosted
+    needs: [backup-odoo, backup-n8n]
+    if: always()
+    steps:
+      - name: Remove backups older than retention period
+        run: |
+          echo "Cleaning up backups older than $BACKUP_RETENTION_DAYS days..."
+          ssh "$NAS_USER@$NAS_HOST" \
+            "find /volume1/backups/odoo -type f -mtime +$BACKUP_RETENTION_DAYS -delete -print" || true
+          ssh "$NAS_USER@$NAS_HOST" \
+            "find /volume1/backups/n8n -type f -mtime +$BACKUP_RETENTION_DAYS -delete -print" || true
+          echo "Cleanup complete"
+
+      - name: Report backup status
+        run: |
+          echo "=== Odoo Backups ==="
+          ssh "$NAS_USER@$NAS_HOST" \
+            "ls -lh /volume1/backups/odoo/ 2>/dev/null | tail -5" || echo "No Odoo backups found"
+          echo ""
+          echo "=== n8n Backups ==="
+          ssh "$NAS_USER@$NAS_HOST" \
+            "ls -lh /volume1/backups/n8n/ 2>/dev/null | tail -5" || echo "No n8n backups found"
+          echo ""
+          echo "=== Disk Usage ==="
+          ssh "$NAS_USER@$NAS_HOST" "du -sh /volume1/backups/*" || true
+
+  notify:
+    name: Notify
+    needs: [backup-odoo, backup-n8n, cleanup-old-backups]
+    runs-on: ubuntu-latest
+    if: always()
+    env:
+      BACKUP_ODOO_RESULT: ${{ needs.backup-odoo.result }}
+      BACKUP_N8N_RESULT: ${{ needs.backup-n8n.result }}
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          if [[ "$BACKUP_ODOO_RESULT" == "success" || "$BACKUP_ODOO_RESULT" == "skipped" ]] && \
+             [[ "$BACKUP_N8N_RESULT" == "success" || "$BACKUP_N8N_RESULT" == "skipped" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification on failure
+        if: steps.status.outputs.status == 'failed' && secrets.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Backup Failed - Odoo: ${{ env.BACKUP_ODOO_RESULT }}, n8n: ${{ env.BACKUP_N8N_RESULT }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

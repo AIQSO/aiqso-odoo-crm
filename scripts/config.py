@@ -63,3 +63,30 @@ def require_config(config: dict[str, Any], required_keys: list[str], source_hint
         f"Missing required configuration values: {missing_str}. "
         f"Set them via environment variables ({source_hint}) or CLI flags."
     )
+
+
+def get_odoo_connection() -> tuple[str, str, int, str]:
+    """
+    Establish XML-RPC connection to Odoo and return connection tuple.
+
+    Returns:
+        Tuple of (url, db, uid, api_key) for use with execute_kw calls.
+    """
+    import xmlrpc.client
+
+    config = load_odoo_config()
+    require_config(config, ["url", "db", "username", "api_key"], "ODOO_*")
+
+    url = config["url"]
+    db = config["db"]
+    username = config["username"]
+    api_key = config["api_key"]
+
+    # Authenticate to get user ID
+    common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
+    uid = common.authenticate(db, username, api_key, {})
+
+    if not uid:
+        raise SystemExit("Odoo authentication failed. Check your credentials.")
+
+    return (url, db, uid, api_key)

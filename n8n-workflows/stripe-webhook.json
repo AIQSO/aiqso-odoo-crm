@@ -1,0 +1,349 @@
+{
+  "name": "Stripe Payment Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "stripe",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "stripe-webhook-trigger",
+      "name": "Stripe Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "stripe-payment-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verify Stripe webhook signature\nconst crypto = require('crypto');\n\nconst signature = $input.first().headers['stripe-signature'];\nconst payload = JSON.stringify($input.first().body);\nconst secret = $env.STRIPE_WEBHOOK_SECRET;\n\nif (!signature || !secret) {\n  throw new Error('Missing signature or webhook secret');\n}\n\nconst elements = signature.split(',');\nconst timestampElement = elements.find(e => e.startsWith('t='));\nconst sigElement = elements.find(e => e.startsWith('v1='));\n\nif (!timestampElement || !sigElement) {\n  throw new Error('Invalid signature format');\n}\n\nconst timestamp = timestampElement.split('=')[1];\nconst sig = sigElement.split('=')[1];\n\nconst signedPayload = `${timestamp}.${payload}`;\nconst expectedSig = crypto\n  .createHmac('sha256', secret)\n  .update(signedPayload)\n  .digest('hex');\n\nif (sig !== expectedSig) {\n  throw new Error('Invalid webhook signature');\n}\n\n// Check timestamp to prevent replay attacks (5 min tolerance)\nconst tolerance = 300;\nconst currentTime = Math.floor(Date.now() / 1000);\nif (currentTime - parseInt(timestamp) > tolerance) {\n  throw new Error('Webhook timestamp too old');\n}\n\nreturn $input.all();"
+      },
+      "id": "verify-signature",
+      "name": "Verify Signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "checkout.session.completed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "checkout_completed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "invoice.paid",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "invoice_paid"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "invoice.payment_failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "payment_failed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.type }}",
+                    "rightValue": "customer.subscription.created",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "subscription_created"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "route-event",
+      "name": "Route Event",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.230:8069/api/create_invoice",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "customer_email",
+              "value": "={{ $json.body.data.object.customer_email }}"
+            },
+            {
+              "name": "amount",
+              "value": "={{ $json.body.data.object.amount_total / 100 }}"
+            },
+            {
+              "name": "stripe_session_id",
+              "value": "={{ $json.body.data.object.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "create-invoice",
+      "name": "Create Odoo Invoice",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 140]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.230:8069/api/mark_invoice_paid",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "invoice_id",
+              "value": "={{ $json.body.data.object.metadata.odoo_invoice_id }}"
+            },
+            {
+              "name": "payment_id",
+              "value": "={{ $json.body.data.object.payment_intent }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "mark-paid",
+      "name": "Mark Invoice Paid",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "billing@aiqso.io",
+        "toEmail": "={{ $json.body.data.object.customer_email }}",
+        "subject": "Payment Failed - Action Required",
+        "html": "<h2>Payment Failed</h2><p>Your recent payment attempt was unsuccessful.</p><p>Please update your payment method to continue your service.</p><p><a href='https://portal.aiqso.io/billing'>Update Payment Method</a></p>"
+      },
+      "id": "payment-failed-email",
+      "name": "Send Failed Payment Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [910, 460]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://automation.aiqso.io/webhook/customer-onboard",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "email",
+              "value": "={{ $json.body.data.object.customer_email }}"
+            },
+            {
+              "name": "subscription_id",
+              "value": "={{ $json.body.data.object.id }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "trigger-onboarding",
+      "name": "Trigger Onboarding",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 620]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { received: true, type: $json.body.type } }}"
+      },
+      "id": "respond-success",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1130, 300]
+    }
+  ],
+  "connections": {
+    "Stripe Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify Signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Signature": {
+      "main": [
+        [
+          {
+            "node": "Route Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Event": {
+      "main": [
+        [
+          {
+            "node": "Create Odoo Invoice",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Mark Invoice Paid",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Failed Payment Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Trigger Onboarding",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Odoo Invoice": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark Invoice Paid": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Failed Payment Email": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Trigger Onboarding": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "payment"
+    },
+    {
+      "name": "stripe"
+    },
+    {
+      "name": "portal"
+    }
+  ]
+}

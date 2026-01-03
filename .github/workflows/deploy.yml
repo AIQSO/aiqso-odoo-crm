@@ -1,0 +1,172 @@
+name: Deploy Odoo Portal Configuration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'n8n-workflows/**'
+      - 'PORTAL_SETUP.md'
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    if: inputs.skip_tests != true
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run linting
+        run: make lint
+
+      - name: Run type checking
+        run: make typecheck
+
+      - name: Run unit tests
+        run: make test
+
+  deploy-scripts:
+    name: Deploy Odoo Scripts
+    needs: [test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: self-hosted
+    env:
+      ODOO_URL: ${{ secrets.ODOO_URL }}
+      ODOO_DB: ${{ secrets.ODOO_DB }}
+      ODOO_USERNAME: ${{ secrets.ODOO_USERNAME }}
+      ODOO_API_KEY: ${{ secrets.ODOO_API_KEY }}
+      N8N_URL: ${{ secrets.N8N_URL }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Create products in Odoo
+        run: python scripts/create_products.py
+
+      - name: Run health check
+        run: python scripts/health_check.py
+
+  deploy-workflows:
+    name: Deploy n8n Workflows
+    needs: [test]
+    if: always() && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    runs-on: self-hosted
+    env:
+      N8N_URL: ${{ secrets.N8N_URL }}
+      N8N_API_KEY: ${{ secrets.N8N_API_KEY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy Stripe webhook workflow
+        run: |
+          if curl -s -f "$N8N_URL/api/v1/workflows" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" | \
+            grep -q "Stripe Payment Webhook"; then
+            echo "Workflow already exists, skipping..."
+          else
+            curl -X POST "$N8N_URL/api/v1/workflows" \
+              -H "X-N8N-API-KEY: $N8N_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @n8n-workflows/stripe-webhook.json
+          fi
+
+      - name: Deploy customer onboarding workflow
+        run: |
+          if curl -s -f "$N8N_URL/api/v1/workflows" \
+            -H "X-N8N-API-KEY: $N8N_API_KEY" | \
+            grep -q "Customer Onboarding Sequence"; then
+            echo "Workflow already exists, skipping..."
+          else
+            curl -X POST "$N8N_URL/api/v1/workflows" \
+              -H "X-N8N-API-KEY: $N8N_API_KEY" \
+              -H "Content-Type: application/json" \
+              -d @n8n-workflows/customer-onboard.json
+          fi
+
+  health-check:
+    name: Final Health Check
+    needs: [deploy-scripts, deploy-workflows]
+    runs-on: self-hosted
+    env:
+      ODOO_URL: ${{ secrets.ODOO_URL }}
+      N8N_URL: ${{ secrets.N8N_URL }}
+    steps:
+      - name: Check Odoo accessibility
+        run: |
+          curl -sf "$ODOO_URL/web/webclient/version_info" || \
+          echo "Warning: Odoo version endpoint not accessible"
+
+      - name: Check n8n accessibility
+        run: |
+          curl -sf "$N8N_URL/healthz" && echo "n8n is healthy" || \
+          echo "Warning: n8n health check failed"
+
+  notify:
+    name: Notify
+    needs: [deploy-scripts, deploy-workflows, health-check]
+    runs-on: ubuntu-latest
+    if: always()
+    env:
+      DEPLOY_SCRIPTS_RESULT: ${{ needs.deploy-scripts.result }}
+      DEPLOY_WORKFLOWS_RESULT: ${{ needs.deploy-workflows.result }}
+      HEALTH_CHECK_RESULT: ${{ needs.health-check.result }}
+      REF_NAME: ${{ github.ref_name }}
+      COMMIT_SHA: ${{ github.sha }}
+    steps:
+      - name: Determine status
+        id: status
+        run: |
+          if [[ "$DEPLOY_SCRIPTS_RESULT" == "success" && \
+                "$DEPLOY_WORKFLOWS_RESULT" == "success" && \
+                "$HEALTH_CHECK_RESULT" == "success" ]]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "emoji=success" >> $GITHUB_OUTPUT
+          else
+            echo "status=failed" >> $GITHUB_OUTPUT
+            echo "emoji=failed" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        if: secrets.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "Odoo Portal Deployment: ${{ steps.status.outputs.status }}"
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
