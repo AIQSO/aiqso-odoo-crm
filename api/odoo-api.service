@@ -1,15 +1,29 @@
 [Unit]
-Description=AIQSO Odoo Invoice API
+Description=AIQSO Odoo Invoice API with Mercury Bank Integration
 After=network.target
 
 [Service]
 Type=simple
 User=root
 WorkingDirectory=/opt/odoo-api
-Environment=ODOO_URL=http://localhost:8069
-Environment=ODOO_DB=aiqso_db
-Environment=ODOO_USERNAME=quinn@aiqso.io
-Environment=ODOO_API_KEY=1120f462ab89f38c4d031ecad3f8278a07508830
+
+# Odoo Configuration - Set these in /etc/odoo-api.env
+EnvironmentFile=/etc/odoo-api.env
+
+# Required environment variables (set in /etc/odoo-api.env):
+# ODOO_URL=http://localhost:8069
+# ODOO_DB=your_database
+# ODOO_USERNAME=your_username
+# ODOO_API_KEY=your_api_key
+# MERCURY_API_TOKEN=your_mercury_token
+# SLACK_WEBHOOK_URL=your_slack_webhook
+
+# Default non-sensitive configuration
+Environment=MERCURY_SYNC_INTERVAL=15
+Environment=MERCURY_AUTO_RECONCILE=true
+Environment=MERCURY_MIN_CONFIDENCE=0.7
+Environment=MERCURY_SYNC_DB=/opt/odoo-api/mercury_sync.db
+
 ExecStart=/opt/odoo-api/venv/bin/uvicorn main:app --host 0.0.0.0 --port 8070
 Restart=always
 RestartSec=5

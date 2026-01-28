@@ -8,21 +8,56 @@ Endpoints:
   - POST /api/mark_invoice_paid - Mark invoice as paid
   - GET /api/invoices/{invoice_id} - Get invoice details
   - GET /health - Health check
+
+Mercury Bank Integration:
+  - GET /api/mercury/accounts - List Mercury accounts with balances
+  - GET /api/mercury/transactions - Get transactions
+  - GET /api/mercury/balance - Quick balance check
+  - POST /api/mercury/sync - Trigger manual sync
+  - POST /api/mercury/reconcile - Auto-match transactions to invoices
+  - GET /api/mercury/unmatched - List unreconciled transactions
+  - GET /api/mercury/status - Sync status and scheduler info
 """
 
 import os
 import xmlrpc.client
+from contextlib import asynccontextmanager
 from datetime import datetime
-from typing import cast
+from typing import Any, cast
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
 
+
+# Lifespan for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Manage application lifecycle - start/stop background tasks."""
+    # Startup: Start Mercury sync scheduler
+    try:
+        from background import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        print(f"Warning: Could not start Mercury scheduler: {e}")
+
+    yield
+
+    # Shutdown: Stop scheduler and close clients
+    try:
+        from background import stop_scheduler
+        from mercury import close_mercury_client
+        stop_scheduler()
+        await close_mercury_client()
+    except Exception:
+        pass
+
+
 app = FastAPI(
     title="AIQSO Odoo Invoice API",
-    description="REST API for Odoo invoice operations",
-    version="1.0.0",
+    description="REST API for Odoo invoice operations and Mercury bank integration",
+    version="1.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -123,16 +158,6 @@ class InvoiceResponse(BaseModel):
 
 
 # Endpoints
-@app.get("/health")
-async def health_check():
-    """Health check endpoint."""
-    try:
-        odoo.authenticate()
-        return {"status": "healthy", "odoo": "connected", "timestamp": datetime.utcnow().isoformat()}
-    except Exception as e:
-        return {"status": "unhealthy", "odoo": "disconnected", "error": str(e)}
-
-
 @app.post("/api/create_invoice", response_model=CreateInvoiceResponse)
 async def create_invoice(request: CreateInvoiceRequest, odoo: OdooConnection = Depends(get_odoo)):
     """
@@ -454,6 +479,328 @@ async def get_invoice_by_stripe(stripe_session_id: str, odoo: OdooConnection = D
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# =============================================================================
+# Mercury Bank Integration Endpoints
+# =============================================================================
+
+# Mercury Response Models
+class MercuryAccountResponse(BaseModel):
+    id: str
+    name: str
+    type: str
+    status: str
+    available_balance: float
+    current_balance: float
+
+
+class MercuryAccountsResponse(BaseModel):
+    accounts: list[MercuryAccountResponse]
+    total_available: float
+    total_current: float
+
+
+class MercuryTransactionResponse(BaseModel):
+    id: str
+    amount: float
+    type: str  # credit or debit
+    counterparty: str | None
+    description: str | None
+    date: str | None
+    status: str
+    reconciled: bool = False
+    invoice_id: int | None = None
+
+
+class MercuryTransactionsResponse(BaseModel):
+    transactions: list[MercuryTransactionResponse]
+    total: int
+
+
+class MercuryBalanceResponse(BaseModel):
+    total_available: float
+    total_current: float
+    accounts: list[dict[str, Any]]
+    as_of: str
+
+
+class MercurySyncResponse(BaseModel):
+    success: bool
+    new_transactions: int
+    deposits: int
+    withdrawals: int
+    reconciled: int
+    errors: list[str]
+
+
+class MercuryReconcileResponse(BaseModel):
+    processed: int
+    matched: int
+    reconciled: int
+    skipped: int
+    details: list[dict[str, Any]]
+    errors: list[dict[str, Any]]
+
+
+class MercuryStatusResponse(BaseModel):
+    mercury_connected: bool
+    scheduler_running: bool
+    sync_interval_minutes: int
+    auto_reconcile: bool
+    slack_enabled: bool
+    last_sync: str | None
+    last_sync_success: bool | None
+    stats: dict[str, Any]
+
+
+@app.get("/api/mercury/accounts", response_model=MercuryAccountsResponse)
+async def get_mercury_accounts():
+    """Get all Mercury bank accounts with balances."""
+    try:
+        from mercury import get_mercury_client
+
+        client = get_mercury_client()
+        balance_info = await client.get_total_balance()
+
+        accounts = [
+            MercuryAccountResponse(
+                id=acc["id"],
+                name=acc["name"],
+                type=acc.get("type", "checking"),
+                status="active",
+                available_balance=acc["available_balance"],
+                current_balance=acc["current_balance"],
+            )
+            for acc in balance_info["accounts"]
+        ]
+
+        return MercuryAccountsResponse(
+            accounts=accounts,
+            total_available=balance_info["total_available"],
+            total_current=balance_info["total_current"],
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/mercury/transactions", response_model=MercuryTransactionsResponse)
+async def get_mercury_transactions(
+    account_id: str | None = Query(None, description="Filter by account ID"),
+    limit: int = Query(50, ge=1, le=500, description="Max transactions to return"),
+    days: int = Query(30, ge=1, le=365, description="Days of history"),
+):
+    """Get Mercury transactions with optional filters."""
+    try:
+        from datetime import timedelta
+
+        from mercury import get_mercury_client
+        from sync_state import get_sync_db
+
+        client = get_mercury_client()
+        sync_db = get_sync_db()
+
+        end = datetime.now()
+        start = end - timedelta(days=days)
+
+        result = await client.get_transactions(
+            account_id=account_id,
+            start=start,
+            end=end,
+            limit=limit,
+        )
+
+        transactions = []
+        for txn in result.get("transactions", []):
+            txn_id = txn.get("id", "")
+            amount = float(txn.get("amount", 0))
+
+            # Check if reconciled in our DB
+            recon_history = sync_db.get_reconciliation_history(limit=1)
+            is_reconciled = any(r["transaction_id"] == txn_id for r in recon_history)
+            invoice_id = None
+            for r in recon_history:
+                if r["transaction_id"] == txn_id:
+                    invoice_id = r["invoice_id"]
+                    break
+
+            transactions.append(MercuryTransactionResponse(
+                id=txn_id,
+                amount=amount,
+                type="credit" if amount > 0 else "debit",
+                counterparty=txn.get("counterpartyName"),
+                description=txn.get("note"),
+                date=txn.get("postedAt", txn.get("createdAt")),
+                status=txn.get("status", "completed"),
+                reconciled=is_reconciled,
+                invoice_id=invoice_id,
+            ))
+
+        return MercuryTransactionsResponse(
+            transactions=transactions,
+            total=len(transactions),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/mercury/balance", response_model=MercuryBalanceResponse)
+async def get_mercury_balance():
+    """Get quick balance summary across all accounts."""
+    try:
+        from mercury import get_mercury_client
+
+        client = get_mercury_client()
+        balance_info = await client.get_total_balance()
+
+        return MercuryBalanceResponse(
+            total_available=balance_info["total_available"],
+            total_current=balance_info["total_current"],
+            accounts=balance_info["accounts"],
+            as_of=datetime.now().isoformat(),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/mercury/sync", response_model=MercurySyncResponse)
+async def trigger_mercury_sync(odoo: OdooConnection = Depends(get_odoo)):
+    """Manually trigger Mercury transaction sync."""
+    try:
+        from background import sync_mercury_transactions
+
+        result = await sync_mercury_transactions(odoo_execute_fn=odoo.execute)
+
+        return MercurySyncResponse(
+            success=result.get("success", False),
+            new_transactions=result.get("new_transactions", 0),
+            deposits=result.get("deposits", 0),
+            withdrawals=result.get("withdrawals", 0),
+            reconciled=result.get("reconciled", 0),
+            errors=result.get("errors", []),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.post("/api/mercury/reconcile", response_model=MercuryReconcileResponse)
+async def reconcile_mercury_transactions(
+    days: int = Query(7, ge=1, le=90, description="Days of history to reconcile"),
+    min_confidence: float = Query(0.7, ge=0.2, le=1.0, description="Minimum match confidence"),
+    odoo: OdooConnection = Depends(get_odoo),
+):
+    """Auto-reconcile Mercury deposits to Odoo invoices."""
+    try:
+        from mercury import get_mercury_client
+        from reconciliation import auto_reconcile_deposits
+
+        client = get_mercury_client()
+
+        result = await auto_reconcile_deposits(
+            mercury_client=client,
+            odoo_execute_fn=odoo.execute,
+            days=days,
+            min_confidence=min_confidence,
+        )
+
+        return MercuryReconcileResponse(
+            processed=result.get("processed", 0),
+            matched=result.get("matched", 0),
+            reconciled=result.get("reconciled", 0),
+            skipped=result.get("skipped", 0),
+            details=result.get("details", []),
+            errors=result.get("errors", []),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/mercury/unmatched")
+async def get_unmatched_transactions(
+    limit: int = Query(50, ge=1, le=200, description="Max transactions to return"),
+):
+    """Get deposits that haven't been reconciled to invoices."""
+    try:
+        from sync_state import get_sync_db
+
+        sync_db = get_sync_db()
+        unmatched = sync_db.get_unreconciled_transactions(limit=limit)
+
+        return {
+            "unmatched_count": len(unmatched),
+            "transactions": unmatched,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/api/mercury/status", response_model=MercuryStatusResponse)
+async def get_mercury_status():
+    """Get Mercury integration status and sync info."""
+    try:
+        from background import get_scheduler_status
+        from mercury import get_mercury_client
+        from sync_state import get_sync_db
+
+        # Check Mercury connectivity
+        client = get_mercury_client()
+        health = await client.health_check()
+
+        # Get scheduler status
+        scheduler_status = get_scheduler_status()
+
+        # Get sync stats
+        sync_db = get_sync_db()
+        stats = sync_db.get_stats()
+
+        # Check Slack status
+        from notifications import is_slack_enabled
+
+        return MercuryStatusResponse(
+            mercury_connected=health.get("connected", False),
+            scheduler_running=scheduler_status.get("running", False),
+            sync_interval_minutes=scheduler_status.get("interval_minutes", 15),
+            auto_reconcile=scheduler_status.get("auto_reconcile", True),
+            slack_enabled=is_slack_enabled(),
+            last_sync=scheduler_status.get("last_sync"),
+            last_sync_success=scheduler_status.get("last_sync_success"),
+            stats=stats,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint with Mercury status."""
+    try:
+        odoo.authenticate()
+        odoo_status = "connected"
+    except Exception as e:
+        odoo_status = f"error: {e}"
+
+    # Check Mercury
+    try:
+        from mercury import get_mercury_client
+        client = get_mercury_client()
+        mercury_health = await client.health_check()
+        mercury_status = "connected" if mercury_health.get("connected") else "disconnected"
+    except Exception as e:
+        mercury_status = f"error: {e}"
+
+    return {
+        "status": "healthy" if odoo_status == "connected" else "degraded",
+        "odoo": odoo_status,
+        "mercury": mercury_status,
+        "timestamp": datetime.utcnow().isoformat(),
+    }
 
 
 if __name__ == "__main__":
