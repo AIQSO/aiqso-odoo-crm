@@ -19,6 +19,7 @@ Mercury Bank Integration:
   - GET /api/mercury/status - Sync status and scheduler info
 """
 
+import logging
 import os
 import xmlrpc.client
 from contextlib import asynccontextmanager
@@ -28,6 +29,8 @@ from typing import Any, cast
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr
+
+logger = logging.getLogger("odoo-invoice-api")
 
 
 # Lifespan for startup/shutdown events
@@ -50,7 +53,7 @@ async def lifespan(app: FastAPI):
         stop_scheduler()
         await close_mercury_client()
     except Exception:
-        pass
+        logger.debug("Shutdown cleanup error", exc_info=True)
 
 
 app = FastAPI(

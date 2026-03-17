@@ -16,7 +16,7 @@ from datetime import datetime
 from typing import Any
 
 # Database path - use environment variable or default
-SYNC_DB_PATH = os.getenv("MERCURY_SYNC_DB", "/tmp/mercury_sync.db")
+SYNC_DB_PATH = os.getenv("MERCURY_SYNC_DB", "/tmp/mercury_sync.db")  # noqa: S108
 
 
 class SyncStateDB:

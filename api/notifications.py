@@ -7,10 +7,9 @@ Sends alerts for:
 - Unmatched deposits requiring attention
 """
 
-import os
 import logging
+import os
 from datetime import datetime
-from typing import Any
 
 import httpx
 

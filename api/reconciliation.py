@@ -14,8 +14,8 @@ When matched:
 
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
-from typing import Any
+from datetime import datetime
+from typing import Any, ClassVar
 
 from sync_state import SyncStateDB, get_sync_db
 
@@ -56,7 +56,7 @@ class InvoiceMatcher:
     """
 
     # Patterns for finding invoice numbers in transaction descriptions
-    INVOICE_PATTERNS = [
+    INVOICE_PATTERNS: ClassVar[list[str]] = [
         r"INV[/-]?\d{4}[/-]\d+",  # INV/2025/0001, INV-2025-0001
         r"Invoice\s*#?\s*(\d+)",   # Invoice #123, Invoice 123
         r"Inv\s*#?\s*(\d+)",       # Inv #123
@@ -443,7 +443,7 @@ class InvoiceMatcher:
         )
 
         if invoice_lines and payment_lines:
-            line_ids = [l["id"] for l in invoice_lines + payment_lines]
+            line_ids = [line["id"] for line in invoice_lines + payment_lines]
             try:
                 self.odoo_execute("account.move.line", "reconcile", line_ids)
             except xmlrpc.client.Fault:
@@ -530,7 +530,6 @@ async def auto_reconcile_deposits(
     Returns:
         Summary of reconciliation results
     """
-    from mercury import MercuryClient
 
     sync_db = get_sync_db()
     matcher = InvoiceMatcher(odoo_execute_fn, sync_db)
