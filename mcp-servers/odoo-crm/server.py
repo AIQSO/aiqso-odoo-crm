@@ -19,7 +19,6 @@ import json
 import os
 import sys
 import xmlrpc.client
-from datetime import datetime
 
 
 # MCP Protocol implementation
@@ -173,15 +172,15 @@ class OdooCRM:
                 [[("stage_id", "=", stage["id"]), ("type", "=", "opportunity")]],
                 {"fields": ["name", "expected_revenue", "partner_name"]},
             )
-            total_revenue = sum(l.get("expected_revenue", 0) for l in leads)
+            total_revenue = sum(lead.get("expected_revenue", 0) for lead in leads)
             summary.append(
                 {
                     "stage": stage["name"],
                     "count": len(leads),
                     "total_revenue": total_revenue,
                     "leads": [
-                        {"name": l["name"], "revenue": l.get("expected_revenue", 0)}
-                        for l in leads[:5]
+                        {"name": lead["name"], "revenue": lead.get("expected_revenue", 0)}
+                        for lead in leads[:5]
                     ],
                 }
             )
@@ -300,6 +299,87 @@ class OdooCRM:
             {"body": message, "message_type": "comment"},
         )
         return {"success": True}
+
+    def search_support_tickets(self, query="", limit=20):
+        """Search CRM leads created from Zammad support tickets."""
+        domain = [("type", "=", "opportunity"), ("name", "ilike", "[Zammad #")]
+        if query:
+            domain.append("|")
+            domain.append(("name", "ilike", query))
+            domain.append(("partner_name", "ilike", query))
+
+        return self._execute(
+            "crm.lead",
+            "search_read",
+            [domain],
+            {
+                "fields": [
+                    "name",
+                    "partner_name",
+                    "contact_name",
+                    "email_from",
+                    "stage_id",
+                    "description",
+                    "create_date",
+                ],
+                "limit": limit,
+                "order": "create_date desc",
+            },
+        )
+
+    def create_lead_silent(self, name, partner_name, email="", phone="", expected_revenue=0, description=""):
+        """Create a CRM lead without sending any notification emails.
+
+        Uses Odoo context flags to suppress all mail activity,
+        preventing email loops when creating leads from external systems.
+        """
+        vals = {
+            "name": name,
+            "partner_name": partner_name,
+            "type": "opportunity",
+        }
+        if email:
+            vals["email_from"] = email
+        if phone:
+            vals["phone"] = phone
+        if expected_revenue:
+            vals["expected_revenue"] = expected_revenue
+        if description:
+            vals["description"] = description
+
+        lead_id = self._execute(
+            "crm.lead",
+            "create",
+            [vals],
+            {
+                "context": {
+                    "mail_create_nosubscribe": True,
+                    "mail_create_nolog": True,
+                    "mail_notrack": True,
+                    "tracking_disable": True,
+                }
+            },
+        )
+        return {"id": lead_id, "name": name}
+
+    def get_support_summary(self):
+        """Get summary of support tickets synced from Zammad."""
+        tickets = self._execute(
+            "crm.lead",
+            "search_read",
+            [[("type", "=", "opportunity"), ("name", "ilike", "[Zammad #")]],
+            {
+                "fields": ["name", "stage_id", "email_from", "create_date"],
+            },
+        )
+        by_stage = {}
+        for t in tickets:
+            stage = t["stage_id"][1] if t.get("stage_id") else "Unknown"
+            by_stage.setdefault(stage, []).append(t["name"])
+        return {
+            "total_tickets": len(tickets),
+            "by_stage": {k: {"count": len(v), "recent": v[:3]} for k, v in by_stage.items()},
+        }
 
 
 # MCP Tool definitions
@@ -437,6 +517,38 @@ TOOLS = [
             "required": ["model", "record_id", "message"],
         },
     },
+    {
+        "name": "search_support_tickets",
+        "description": "Search CRM leads created from Zammad helpdesk tickets. These have '[Zammad #NNN]' in the name.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search term (ticket number, title, or company)"},
+                "limit": {"type": "integer", "description": "Max results (default 20)", "default": 20},
+            },
+        },
+    },
+    {
+        "name": "create_lead_silent",
+        "description": "Create a CRM lead WITHOUT sending notification emails. Use this when creating leads from external systems (Zammad, webhooks) to prevent email loops.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Opportunity name"},
+                "partner_name": {"type": "string", "description": "Company name"},
+                "email": {"type": "string", "description": "Contact email"},
+                "phone": {"type": "string", "description": "Contact phone"},
+                "expected_revenue": {"type": "number", "description": "Expected deal value"},
+                "description": {"type": "string", "description": "Notes/description"},
+            },
+            "required": ["name", "partner_name"],
+        },
+    },
+    {
+        "name": "support_summary",
+        "description": "Get summary of Zammad support tickets synced to Odoo — counts by stage.",
+        "inputSchema": {"type": "object", "properties": {}},
+    },
 ]
 
 
@@ -447,7 +559,7 @@ def handle_request(odoo, method, params):
         return {
             "protocolVersion": "2024-11-05",
             "capabilities": {"tools": {}},
-            "serverInfo": {"name": "odoo-crm", "version": "1.0.0"},
+            "serverInfo": {"name": "odoo-crm", "version": "1.1.0"},
         }
 
     if method == "tools/list":
@@ -480,6 +592,12 @@ def handle_request(odoo, method, params):
                 result = odoo.get_projects(args.get("limit", 10))
             elif tool_name == "log_note":
                 result = odoo.log_note(args["model"], args["record_id"], args["message"])
+            elif tool_name == "search_support_tickets":
+                result = odoo.search_support_tickets(args.get("query", ""), args.get("limit", 20))
+            elif tool_name == "create_lead_silent":
+                result = odoo.create_lead_silent(**args)
+            elif tool_name == "support_summary":
+                result = odoo.get_support_summary()
             else:
                 return {"content": [{"type": "text", "text": f"Unknown tool: {tool_name}"}], "isError": True}
 
@@ -492,7 +610,7 @@ def handle_request(odoo, method, params):
                 ]
             }
         except Exception as e:
-            return {"content": [{"type": "text", "text": f"Error: {str(e)}"}], "isError": True}
+            return {"content": [{"type": "text", "text": f"Error: {e!s}"}], "isError": True}
 
     if method == "notifications/initialized":
         return None  # No response needed

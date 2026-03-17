@@ -1,0 +1,275 @@
+{
+  "name": "Zammad Ticket Closed → Odoo Update",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "zammad-ticket-closed",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "close-webhook",
+      "name": "Zammad Close Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300],
+      "webhookId": "zammad-ticket-closed"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract closed ticket data\nconst ticket = $input.first().json.body?.ticket || $input.first().json.ticket;\nif (!ticket) {\n  throw new Error('No ticket data in webhook payload');\n}\n\nconst state = ticket.state?.name || ticket.state || '';\nconst isClosed = ['closed', 'merged'].includes(state.toLowerCase());\n\nreturn [{\n  json: {\n    ticket_id: ticket.id,\n    ticket_number: ticket.number,\n    title: ticket.title,\n    state: state,\n    is_closed: isClosed,\n    customer_email: ticket.customer?.email || '',\n    customer_name: [ticket.customer?.firstname, ticket.customer?.lastname].filter(Boolean).join(' ') || '',\n    close_at: ticket.close_at || ticket.updated_at,\n    zammad_url: `https://helpdesk.aiqso.io/#ticket/zoom/${ticket.id}`\n  }\n}];"
+      },
+      "id": "extract-close",
+      "name": "Extract Close Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "check-closed",
+              "leftValue": "={{ $json.is_closed }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "is-closed",
+      "name": "Is Closed?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/common",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$env.ODOO_DB, $env.ODOO_USERNAME, $env.ODOO_API_KEY, {}] }, id: 1 }) }}",
+        "options": {}
+      },
+      "id": "odoo-auth-close",
+      "name": "Odoo Authenticate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [910, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/object",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'crm.lead', 'search_read', [[['name', 'ilike', '[Zammad #' + $('Extract Close Data').item.json.ticket_number + ']']]], { fields: ['id', 'name', 'stage_id'], limit: 1 } ] }, id: 2 }) }}",
+        "options": {}
+      },
+      "id": "find-lead",
+      "name": "Find Matching Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "lead-found",
+              "leftValue": "={{ $json.result?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "lead-exists",
+      "name": "Lead Found?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1350, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/object",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'crm.lead', 'message_post', [$('Find Matching Lead').item.json.result[0].id], { body: '<p><strong>✅ Zammad Ticket #' + $('Extract Close Data').item.json.ticket_number + ' Closed</strong></p><p>Ticket resolved at ' + $('Extract Close Data').item.json.close_at + '</p><p><a href=\"' + $('Extract Close Data').item.json.zammad_url + '\">View in Zammad</a></p>', message_type: 'comment', subtype_xmlid: 'mail.mt_note' } ] }, id: 3 }) }}",
+        "options": {}
+      },
+      "id": "log-close-note",
+      "name": "Log Close Note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1570, 100]
+    },
+    {
+      "parameters": {
+        "channel": "#crm-updates",
+        "text": "=:white_check_mark: *Support Ticket Resolved*\n\n*Ticket:* #{{ $('Extract Close Data').item.json.ticket_number }}\n*Title:* {{ $('Extract Close Data').item.json.title }}\n*Customer:* {{ $('Extract Close Data').item.json.customer_name || $('Extract Close Data').item.json.customer_email }}\n\n<{{ $('Extract Close Data').item.json.zammad_url }}|View in Zammad>"
+      },
+      "id": "slack-close",
+      "name": "Slack Close Notification",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1790, 200]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { received: true, action: 'close_sync' } }}"
+      },
+      "id": "respond-close",
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2010, 300]
+    }
+  ],
+  "connections": {
+    "Zammad Close Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract Close Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Close Data": {
+      "main": [
+        [
+          {
+            "node": "Is Closed?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Closed?": {
+      "main": [
+        [
+          {
+            "node": "Odoo Authenticate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Odoo Authenticate": {
+      "main": [
+        [
+          {
+            "node": "Find Matching Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Matching Lead": {
+      "main": [
+        [
+          {
+            "node": "Lead Found?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lead Found?": {
+      "main": [
+        [
+          {
+            "node": "Log Close Note",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Slack Close Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Close Note": {
+      "main": [
+        [
+          {
+            "node": "Slack Close Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Slack Close Notification": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "helpdesk"
+    },
+    {
+      "name": "zammad"
+    },
+    {
+      "name": "CRM"
+    }
+  ]
+}

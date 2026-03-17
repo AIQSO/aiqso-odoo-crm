@@ -1,0 +1,302 @@
+{
+  "name": "Odoo Client Won → Create Zammad Customer",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule-won",
+      "name": "Every Hour",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/common",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$env.ODOO_DB, $env.ODOO_USERNAME, $env.ODOO_API_KEY, {}] }, id: 1 }) }}",
+        "options": {}
+      },
+      "id": "auth-won",
+      "name": "Odoo Authenticate",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/object",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $json.result, $json.result, $env.ODOO_API_KEY, 'crm.lead', 'search_read', [[['stage_id.name', '=', 'Won'], ['write_date', '>=', new Date(Date.now() - 3600000).toISOString()]]], { fields: ['name', 'partner_name', 'contact_name', 'email_from', 'phone', 'partner_id'], limit: 50 } ] }, id: 2 }) }}",
+        "options": {}
+      },
+      "id": "find-won",
+      "name": "Find Recently Won Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [690, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "has-won",
+              "leftValue": "={{ $json.result?.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "has-won-leads",
+      "name": "Any Won Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [910, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split won leads into individual items for processing\nconst leads = $input.first().json.result || [];\nreturn leads\n  .filter(lead => lead.email_from)\n  .map(lead => ({\n    json: {\n      odoo_lead_name: lead.name,\n      email: lead.email_from,\n      firstname: (lead.contact_name || lead.partner_name || '').split(' ')[0] || '',\n      lastname: (lead.contact_name || lead.partner_name || '').split(' ').slice(1).join(' ') || '',\n      company: lead.partner_name || '',\n      phone: lead.phone || ''\n    }\n  }));"
+      },
+      "id": "split-leads",
+      "name": "Split Into Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1130, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://helpdesk.aiqso.io/api/v1/users/search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "query",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "limit",
+              "value": "1"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Token token={{ $env.ZAMMAD_API_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "check-zammad-user",
+      "name": "Check Zammad User Exists",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1350, 200],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "user-missing",
+              "leftValue": "={{ Array.isArray($json) ? $json.length : 0 }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "user-missing",
+      "name": "User Missing?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1570, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://helpdesk.aiqso.io/api/v1/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Token token={{ $env.ZAMMAD_API_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ firstname: $('Split Into Items').item.json.firstname, lastname: $('Split Into Items').item.json.lastname, email: $('Split Into Items').item.json.email, phone: $('Split Into Items').item.json.phone, organization: $('Split Into Items').item.json.company, roles: ['Customer'], active: true, note: 'Auto-created from Odoo Won lead: ' + $('Split Into Items').item.json.odoo_lead_name }) }}",
+        "options": {}
+      },
+      "id": "create-zammad-user",
+      "name": "Create Zammad Customer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1790, 100]
+    },
+    {
+      "parameters": {
+        "channel": "#crm-updates",
+        "text": "=:handshake: *New Client Added to Helpdesk*\n\n*Name:* {{ $('Split Into Items').item.json.firstname }} {{ $('Split Into Items').item.json.lastname }}\n*Email:* {{ $('Split Into Items').item.json.email }}\n*Company:* {{ $('Split Into Items').item.json.company }}\n*Source:* Odoo Won Lead\n\nCustomer can now submit tickets at <https://helpdesk.aiqso.io|helpdesk.aiqso.io>"
+      },
+      "id": "slack-new-client",
+      "name": "Slack New Client",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [2010, 100]
+    }
+  ],
+  "connections": {
+    "Every Hour": {
+      "main": [
+        [
+          {
+            "node": "Odoo Authenticate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Odoo Authenticate": {
+      "main": [
+        [
+          {
+            "node": "Find Recently Won Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Recently Won Leads": {
+      "main": [
+        [
+          {
+            "node": "Any Won Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Won Leads?": {
+      "main": [
+        [
+          {
+            "node": "Split Into Items",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Split Into Items": {
+      "main": [
+        [
+          {
+            "node": "Check Zammad User Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Zammad User Exists": {
+      "main": [
+        [
+          {
+            "node": "User Missing?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "User Missing?": {
+      "main": [
+        [
+          {
+            "node": "Create Zammad Customer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Create Zammad Customer": {
+      "main": [
+        [
+          {
+            "node": "Slack New Client",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "helpdesk"
+    },
+    {
+      "name": "zammad"
+    },
+    {
+      "name": "CRM"
+    },
+    {
+      "name": "onboarding"
+    }
+  ]
+}
