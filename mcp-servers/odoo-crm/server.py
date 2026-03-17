@@ -41,6 +41,17 @@ class OdooCRM:
     """Odoo CRM client for MCP operations."""
 
     def __init__(self):
+        # Load .env file if ODOO_API_KEY not already in environment
+        if not os.environ.get("ODOO_API_KEY"):
+            env_path = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+            if os.path.exists(env_path):
+                with open(env_path) as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith("#") and "=" in line:
+                            key, _, value = line.partition("=")
+                            os.environ.setdefault(key.strip(), value.strip())
+
         self.url = os.environ.get("ODOO_URL", "http://192.168.0.237:8069")
         self.db = os.environ.get("ODOO_DB", "aiqso_db")
         self.username = os.environ.get("ODOO_USERNAME", "quinn@aiqso.io")
