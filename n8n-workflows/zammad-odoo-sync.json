@@ -17,10 +17,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract ticket data from Zammad webhook payload\nconst ticket = $input.first().json.body?.ticket || $input.first().json.ticket;\nif (!ticket) {\n  throw new Error('No ticket data in webhook payload');\n}\n\nconst customer = ticket.customer || {};\nconst article = ticket.article || {};\n\n// Build normalized ticket object\nreturn [{\n  json: {\n    ticket_id: ticket.id,\n    ticket_number: ticket.number,\n    title: ticket.title,\n    state: ticket.state?.name || ticket.state || 'new',\n    priority: ticket.priority?.name || ticket.priority || 'normal',\n    group: ticket.group?.name || ticket.group || 'Users',\n    customer_email: customer.email || '',\n    customer_name: [customer.firstname, customer.lastname].filter(Boolean).join(' ') || customer.email || 'Unknown',\n    article_body: article.body || '',\n    created_at: ticket.created_at,\n    updated_at: ticket.updated_at,\n    zammad_url: `https://helpdesk.aiqso.io/#ticket/zoom/${ticket.id}`\n  }\n}];"
+        "jsCode": "// ═══════════════════════════════════════════\n// CONFIGURATION — Edit these values only\n// ═══════════════════════════════════════════\nconst ODOO_URL = 'http://192.168.0.237:8069';\nconst ODOO_DB = 'aiqso_db';\nconst ODOO_USERNAME = 'quinn@aiqso.io';\nconst ODOO_API_KEY = 'REPLACE_WITH_YOUR_ODOO_API_KEY';\n// ═══════════════════════════════════════════\n\n// Extract ticket data from Zammad webhook payload\nconst input = $input.first().json;\nconst ticket = input.body?.ticket || input.ticket;\nif (!ticket) {\n  throw new Error('No ticket data in webhook payload');\n}\n\nconst customer = ticket.customer || {};\nconst article = ticket.article || {};\n\nreturn [{\n  json: {\n    // Config\n    odoo_url: ODOO_URL,\n    odoo_db: ODOO_DB,\n    odoo_username: ODOO_USERNAME,\n    odoo_api_key: ODOO_API_KEY,\n    // Ticket data\n    ticket_id: ticket.id,\n    ticket_number: ticket.number,\n    title: ticket.title,\n    state: ticket.state?.name || ticket.state || 'new',\n    priority: ticket.priority?.name || ticket.priority || 'normal',\n    group: ticket.group?.name || ticket.group || 'Users',\n    customer_email: customer.email || '',\n    customer_name: [customer.firstname, customer.lastname].filter(Boolean).join(' ') || customer.email || 'Unknown',\n    article_body: article.body || '',\n    created_at: ticket.created_at,\n    updated_at: ticket.updated_at,\n    zammad_url: `https://helpdesk.aiqso.io/#ticket/zoom/${ticket.id}`\n  }\n}];"
       },
-      "id": "extract-ticket",
-      "name": "Extract Ticket Data",
+      "id": "config-extract",
+      "name": "Config & Extract Ticket",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [470, 300]
@@ -58,10 +58,10 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://192.168.0.237:8069/xmlrpc/2/common",
+        "url": "=http://192.168.0.237:8069/xmlrpc/2/common",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$env.ODOO_DB, $env.ODOO_USERNAME, $env.ODOO_API_KEY, {}] }, id: 1 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$('Config & Extract Ticket').item.json.odoo_db, $('Config & Extract Ticket').item.json.odoo_username, $('Config & Extract Ticket').item.json.odoo_api_key, {}] }, id: 1 }) }}",
         "options": {}
       },
       "id": "odoo-auth",
@@ -76,7 +76,7 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'res.partner', 'search_read', [[['email', '=', $('Extract Ticket Data').item.json.customer_email]]], { fields: ['id', 'name', 'email'], limit: 1 } ] }, id: 2 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $('Config & Extract Ticket').item.json.odoo_db, $('Odoo Authenticate').item.json.result, $('Config & Extract Ticket').item.json.odoo_api_key, 'res.partner', 'search_read', [[['email', '=', $('Config & Extract Ticket').item.json.customer_email]]], { fields: ['id', 'name', 'email'], limit: 1 } ] }, id: 2 }) }}",
         "options": {}
       },
       "id": "find-contact",
@@ -91,7 +91,7 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'crm.lead', 'create', [{ name: '[Zammad #' + $('Extract Ticket Data').item.json.ticket_number + '] ' + $('Extract Ticket Data').item.json.title, contact_name: $('Extract Ticket Data').item.json.customer_name, email_from: $('Extract Ticket Data').item.json.customer_email, partner_id: ($json.result && $json.result.length > 0) ? $json.result[0].id : false, description: 'Support ticket from Zammad\\n\\nTicket: #' + $('Extract Ticket Data').item.json.ticket_number + '\\nPriority: ' + $('Extract Ticket Data').item.json.priority + '\\nGroup: ' + $('Extract Ticket Data').item.json.group + '\\n\\nView: ' + $('Extract Ticket Data').item.json.zammad_url, type: 'opportunity' }], { context: { mail_create_nosubscribe: true, mail_create_nolog: true, mail_notrack: true, tracking_disable: true } } ] }, id: 3 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $('Config & Extract Ticket').item.json.odoo_db, $('Odoo Authenticate').item.json.result, $('Config & Extract Ticket').item.json.odoo_api_key, 'crm.lead', 'create', [{ name: '[Zammad #' + $('Config & Extract Ticket').item.json.ticket_number + '] ' + $('Config & Extract Ticket').item.json.title, contact_name: $('Config & Extract Ticket').item.json.customer_name, email_from: $('Config & Extract Ticket').item.json.customer_email, partner_id: ($json.result && $json.result.length > 0) ? $json.result[0].id : false, description: 'Support ticket from Zammad\\n\\nTicket: #' + $('Config & Extract Ticket').item.json.ticket_number + '\\nPriority: ' + $('Config & Extract Ticket').item.json.priority + '\\nGroup: ' + $('Config & Extract Ticket').item.json.group + '\\n\\nView: ' + $('Config & Extract Ticket').item.json.zammad_url, type: 'opportunity' }], { context: { mail_create_nosubscribe: true, mail_create_nolog: true, mail_notrack: true, tracking_disable: true } } ] }, id: 3 }) }}",
         "options": {}
       },
       "id": "create-lead",
@@ -106,7 +106,7 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'crm.lead', 'message_post', [$json.result], { body: '<p><strong>🎫 Zammad Ticket #' + $('Extract Ticket Data').item.json.ticket_number + '</strong></p><p>' + $('Extract Ticket Data').item.json.title + '</p><p>Priority: ' + $('Extract Ticket Data').item.json.priority + ' | <a href=\"' + $('Extract Ticket Data').item.json.zammad_url + '\">View in Zammad</a></p>', message_type: 'comment', subtype_xmlid: 'mail.mt_note' } ] }, id: 4 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $('Config & Extract Ticket').item.json.odoo_db, $('Odoo Authenticate').item.json.result, $('Config & Extract Ticket').item.json.odoo_api_key, 'crm.lead', 'message_post', [$json.result], { body: '<p><strong>Zammad Ticket #' + $('Config & Extract Ticket').item.json.ticket_number + '</strong></p><p>' + $('Config & Extract Ticket').item.json.title + '</p><p>Priority: ' + $('Config & Extract Ticket').item.json.priority + ' | <a href=\"' + $('Config & Extract Ticket').item.json.zammad_url + '\">View in Zammad</a></p>', message_type: 'comment', subtype_xmlid: 'mail.mt_note' } ] }, id: 4 }) }}",
         "options": {}
       },
       "id": "log-note",
@@ -119,7 +119,7 @@
     {
       "parameters": {
         "channel": "#crm-updates",
-        "text": "=:ticket: *New Support Ticket → Odoo Lead*\n\n*Ticket:* #{{ $('Extract Ticket Data').item.json.ticket_number }}\n*Title:* {{ $('Extract Ticket Data').item.json.title }}\n*Priority:* {{ $('Extract Ticket Data').item.json.priority }}\n*From:* {{ $('Extract Ticket Data').item.json.customer_email || 'Unknown' }}\n*Odoo Lead:* Created ✅\n\n<{{ $('Extract Ticket Data').item.json.zammad_url }}|View in Zammad> | <http://192.168.0.237:8069/web#model=crm.lead&view_type=form&id={{ $('Create Odoo Lead (No Email)').item.json.result }}|View in Odoo>"
+        "text": "=:ticket: *New Support Ticket → Odoo Lead*\n\n*Ticket:* #{{ $('Config & Extract Ticket').item.json.ticket_number }}\n*Title:* {{ $('Config & Extract Ticket').item.json.title }}\n*Priority:* {{ $('Config & Extract Ticket').item.json.priority }}\n*From:* {{ $('Config & Extract Ticket').item.json.customer_email || 'Unknown' }}\n*Odoo Lead:* Created\n\n<{{ $('Config & Extract Ticket').item.json.zammad_url }}|View in Zammad> | <http://192.168.0.237:8069/web#model=crm.lead&view_type=form&id={{ $('Create Odoo Lead (No Email)').item.json.result }}|View in Odoo>"
       },
       "id": "slack-notify",
       "name": "Slack Notification",
@@ -130,7 +130,7 @@
     {
       "parameters": {
         "channel": "#crm-updates",
-        "text": "=:ticket: *Support Ticket Updated*\n\n*Ticket:* #{{ $('Extract Ticket Data').item.json.ticket_number }}\n*Title:* {{ $('Extract Ticket Data').item.json.title }}\n*State:* {{ $('Extract Ticket Data').item.json.state }}\n*From:* {{ $('Extract Ticket Data').item.json.customer_email || 'Unknown' }}\n\n<{{ $('Extract Ticket Data').item.json.zammad_url }}|View in Zammad>"
+        "text": "=:ticket: *Support Ticket Updated*\n\n*Ticket:* #{{ $('Config & Extract Ticket').item.json.ticket_number }}\n*Title:* {{ $('Config & Extract Ticket').item.json.title }}\n*State:* {{ $('Config & Extract Ticket').item.json.state }}\n*From:* {{ $('Config & Extract Ticket').item.json.customer_email || 'Unknown' }}\n\n<{{ $('Config & Extract Ticket').item.json.zammad_url }}|View in Zammad>"
       },
       "id": "slack-update",
       "name": "Slack Update Notification",
@@ -141,7 +141,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { received: true, ticket_number: $('Extract Ticket Data').item.json.ticket_number } }}"
+        "responseBody": "={{ { received: true, ticket_number: $('Config & Extract Ticket').item.json.ticket_number } }}"
       },
       "id": "respond-ok",
       "name": "Respond OK",
@@ -152,125 +152,37 @@
   ],
   "connections": {
     "Zammad Ticket Webhook": {
-      "main": [
-        [
-          {
-            "node": "Extract Ticket Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Config & Extract Ticket", "type": "main", "index": 0 } ]]
     },
-    "Extract Ticket Data": {
-      "main": [
-        [
-          {
-            "node": "New Ticket?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Config & Extract Ticket": {
+      "main": [[ { "node": "New Ticket?", "type": "main", "index": 0 } ]]
     },
     "New Ticket?": {
       "main": [
-        [
-          {
-            "node": "Odoo Authenticate",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Slack Update Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Odoo Authenticate", "type": "main", "index": 0 }],
+        [{ "node": "Slack Update Notification", "type": "main", "index": 0 }]
       ]
     },
     "Odoo Authenticate": {
-      "main": [
-        [
-          {
-            "node": "Find Contact in Odoo",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Find Contact in Odoo", "type": "main", "index": 0 } ]]
     },
     "Find Contact in Odoo": {
-      "main": [
-        [
-          {
-            "node": "Create Odoo Lead (No Email)",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Create Odoo Lead (No Email)", "type": "main", "index": 0 } ]]
     },
     "Create Odoo Lead (No Email)": {
-      "main": [
-        [
-          {
-            "node": "Log Note on Lead",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Log Note on Lead", "type": "main", "index": 0 } ]]
     },
     "Log Note on Lead": {
-      "main": [
-        [
-          {
-            "node": "Slack Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Slack Notification", "type": "main", "index": 0 } ]]
     },
     "Slack Notification": {
-      "main": [
-        [
-          {
-            "node": "Respond OK",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]]
     },
     "Slack Update Notification": {
-      "main": [
-        [
-          {
-            "node": "Respond OK",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]]
     }
   },
-  "settings": {
-    "executionOrder": "v1"
-  },
+  "settings": { "executionOrder": "v1" },
   "staticData": null,
-  "tags": [
-    {
-      "name": "helpdesk"
-    },
-    {
-      "name": "zammad"
-    },
-    {
-      "name": "CRM"
-    }
-  ]
+  "tags": [{ "name": "helpdesk" }, { "name": "zammad" }, { "name": "CRM" }]
 }

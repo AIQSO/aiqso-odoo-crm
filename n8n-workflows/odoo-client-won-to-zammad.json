@@ -20,18 +20,28 @@
     },
     {
       "parameters": {
+        "jsCode": "// ═══════════════════════════════════════════\n// CONFIGURATION — Edit these values only\n// ═══════════════════════════════════════════\nconst ODOO_URL = 'http://192.168.0.237:8069';\nconst ODOO_DB = 'aiqso_db';\nconst ODOO_USERNAME = 'quinn@aiqso.io';\nconst ODOO_API_KEY = 'REPLACE_WITH_YOUR_ODOO_API_KEY';\nconst ZAMMAD_URL = 'https://helpdesk.aiqso.io';\nconst ZAMMAD_API_TOKEN = 'REPLACE_WITH_YOUR_ZAMMAD_API_TOKEN';\n// ═══════════════════════════════════════════\n\nreturn [{\n  json: {\n    odoo_url: ODOO_URL,\n    odoo_db: ODOO_DB,\n    odoo_username: ODOO_USERNAME,\n    odoo_api_key: ODOO_API_KEY,\n    zammad_url: ZAMMAD_URL,\n    zammad_token: ZAMMAD_API_TOKEN\n  }\n}];"
+      },
+      "id": "config",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [470, 300]
+    },
+    {
+      "parameters": {
         "method": "POST",
         "url": "http://192.168.0.237:8069/xmlrpc/2/common",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$env.ODOO_DB, $env.ODOO_USERNAME, $env.ODOO_API_KEY, {}] }, id: 1 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$json.odoo_db, $json.odoo_username, $json.odoo_api_key, {}] }, id: 1 }) }}",
         "options": {}
       },
       "id": "auth-won",
       "name": "Odoo Authenticate",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [470, 300]
+      "position": [690, 300]
     },
     {
       "parameters": {
@@ -39,14 +49,14 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $json.result, $json.result, $env.ODOO_API_KEY, 'crm.lead', 'search_read', [[['stage_id.name', '=', 'Won'], ['write_date', '>=', new Date(Date.now() - 3600000).toISOString()]]], { fields: ['name', 'partner_name', 'contact_name', 'email_from', 'phone', 'partner_id'], limit: 50 } ] }, id: 2 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $('Config').item.json.odoo_db, $json.result, $('Config').item.json.odoo_api_key, 'crm.lead', 'search_read', [[['stage_id.name', '=', 'Won'], ['write_date', '>=', new Date(Date.now() - 3600000).toISOString()]]], { fields: ['name', 'partner_name', 'contact_name', 'email_from', 'phone', 'partner_id'], limit: 50 } ] }, id: 2 }) }}",
         "options": {}
       },
       "id": "find-won",
       "name": "Find Recently Won Leads",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [690, 300]
+      "position": [910, 300]
     },
     {
       "parameters": {
@@ -76,17 +86,17 @@
       "name": "Any Won Leads?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [910, 300]
+      "position": [1130, 300]
     },
     {
       "parameters": {
-        "jsCode": "// Split won leads into individual items for processing\nconst leads = $input.first().json.result || [];\nreturn leads\n  .filter(lead => lead.email_from)\n  .map(lead => ({\n    json: {\n      odoo_lead_name: lead.name,\n      email: lead.email_from,\n      firstname: (lead.contact_name || lead.partner_name || '').split(' ')[0] || '',\n      lastname: (lead.contact_name || lead.partner_name || '').split(' ').slice(1).join(' ') || '',\n      company: lead.partner_name || '',\n      phone: lead.phone || ''\n    }\n  }));"
+        "jsCode": "// Split won leads into individual items for processing\nconst leads = $input.first().json.result || [];\nconst config = $('Config').item.json;\nreturn leads\n  .filter(lead => lead.email_from)\n  .map(lead => ({\n    json: {\n      zammad_url: config.zammad_url,\n      zammad_token: config.zammad_token,\n      odoo_lead_name: lead.name,\n      email: lead.email_from,\n      firstname: (lead.contact_name || lead.partner_name || '').split(' ')[0] || '',\n      lastname: (lead.contact_name || lead.partner_name || '').split(' ').slice(1).join(' ') || '',\n      company: lead.partner_name || '',\n      phone: lead.phone || ''\n    }\n  }));"
       },
       "id": "split-leads",
       "name": "Split Into Items",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1130, 200]
+      "position": [1350, 200]
     },
     {
       "parameters": {
@@ -95,23 +105,14 @@
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            {
-              "name": "query",
-              "value": "={{ $json.email }}"
-            },
-            {
-              "name": "limit",
-              "value": "1"
-            }
+            { "name": "query", "value": "={{ $json.email }}" },
+            { "name": "limit", "value": "1" }
           ]
         },
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Token token={{ $env.ZAMMAD_API_TOKEN }}"
-            }
+            { "name": "Authorization", "value": "=Token token={{ $json.zammad_token }}" }
           ]
         },
         "options": {}
@@ -120,7 +121,7 @@
       "name": "Check Zammad User Exists",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1350, 200],
+      "position": [1570, 200],
       "continueOnFail": true
     },
     {
@@ -151,7 +152,7 @@
       "name": "User Missing?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1570, 200]
+      "position": [1790, 200]
     },
     {
       "parameters": {
@@ -160,10 +161,7 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "=Token token={{ $env.ZAMMAD_API_TOKEN }}"
-            }
+            { "name": "Authorization", "value": "=Token token={{ $('Split Into Items').item.json.zammad_token }}" }
           ]
         },
         "sendBody": true,
@@ -175,7 +173,7 @@
       "name": "Create Zammad Customer",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1790, 100]
+      "position": [2010, 100]
     },
     {
       "parameters": {
@@ -186,117 +184,45 @@
       "name": "Slack New Client",
       "type": "n8n-nodes-base.slack",
       "typeVersion": 2.2,
-      "position": [2010, 100]
+      "position": [2230, 100]
     }
   ],
   "connections": {
     "Every Hour": {
-      "main": [
-        [
-          {
-            "node": "Odoo Authenticate",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Config", "type": "main", "index": 0 } ]]
+    },
+    "Config": {
+      "main": [[ { "node": "Odoo Authenticate", "type": "main", "index": 0 } ]]
     },
     "Odoo Authenticate": {
-      "main": [
-        [
-          {
-            "node": "Find Recently Won Leads",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Find Recently Won Leads", "type": "main", "index": 0 } ]]
     },
     "Find Recently Won Leads": {
-      "main": [
-        [
-          {
-            "node": "Any Won Leads?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Any Won Leads?", "type": "main", "index": 0 } ]]
     },
     "Any Won Leads?": {
       "main": [
-        [
-          {
-            "node": "Split Into Items",
-            "type": "main",
-            "index": 0
-          }
-        ],
+        [{ "node": "Split Into Items", "type": "main", "index": 0 }],
         []
       ]
     },
     "Split Into Items": {
-      "main": [
-        [
-          {
-            "node": "Check Zammad User Exists",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Check Zammad User Exists", "type": "main", "index": 0 } ]]
     },
     "Check Zammad User Exists": {
-      "main": [
-        [
-          {
-            "node": "User Missing?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "User Missing?", "type": "main", "index": 0 } ]]
     },
     "User Missing?": {
       "main": [
-        [
-          {
-            "node": "Create Zammad Customer",
-            "type": "main",
-            "index": 0
-          }
-        ],
+        [{ "node": "Create Zammad Customer", "type": "main", "index": 0 }],
         []
       ]
     },
     "Create Zammad Customer": {
-      "main": [
-        [
-          {
-            "node": "Slack New Client",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Slack New Client", "type": "main", "index": 0 } ]]
     }
   },
-  "settings": {
-    "executionOrder": "v1"
-  },
+  "settings": { "executionOrder": "v1" },
   "staticData": null,
-  "tags": [
-    {
-      "name": "helpdesk"
-    },
-    {
-      "name": "zammad"
-    },
-    {
-      "name": "CRM"
-    },
-    {
-      "name": "onboarding"
-    }
-  ]
+  "tags": [{ "name": "helpdesk" }, { "name": "zammad" }, { "name": "CRM" }, { "name": "onboarding" }]
 }

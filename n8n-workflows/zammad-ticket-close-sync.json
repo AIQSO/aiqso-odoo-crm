@@ -17,10 +17,10 @@
     },
     {
       "parameters": {
-        "jsCode": "// Extract closed ticket data\nconst ticket = $input.first().json.body?.ticket || $input.first().json.ticket;\nif (!ticket) {\n  throw new Error('No ticket data in webhook payload');\n}\n\nconst state = ticket.state?.name || ticket.state || '';\nconst isClosed = ['closed', 'merged'].includes(state.toLowerCase());\n\nreturn [{\n  json: {\n    ticket_id: ticket.id,\n    ticket_number: ticket.number,\n    title: ticket.title,\n    state: state,\n    is_closed: isClosed,\n    customer_email: ticket.customer?.email || '',\n    customer_name: [ticket.customer?.firstname, ticket.customer?.lastname].filter(Boolean).join(' ') || '',\n    close_at: ticket.close_at || ticket.updated_at,\n    zammad_url: `https://helpdesk.aiqso.io/#ticket/zoom/${ticket.id}`\n  }\n}];"
+        "jsCode": "// ═══════════════════════════════════════════\n// CONFIGURATION — Edit these values only\n// ═══════════════════════════════════════════\nconst ODOO_URL = 'http://192.168.0.237:8069';\nconst ODOO_DB = 'aiqso_db';\nconst ODOO_USERNAME = 'quinn@aiqso.io';\nconst ODOO_API_KEY = 'REPLACE_WITH_YOUR_ODOO_API_KEY';\n// ═══════════════════════════════════════════\n\nconst input = $input.first().json;\nconst ticket = input.body?.ticket || input.ticket;\nif (!ticket) {\n  throw new Error('No ticket data in webhook payload');\n}\n\nconst state = ticket.state?.name || ticket.state || '';\nconst isClosed = ['closed', 'merged'].includes(state.toLowerCase());\n\nreturn [{\n  json: {\n    odoo_url: ODOO_URL,\n    odoo_db: ODOO_DB,\n    odoo_username: ODOO_USERNAME,\n    odoo_api_key: ODOO_API_KEY,\n    ticket_id: ticket.id,\n    ticket_number: ticket.number,\n    title: ticket.title,\n    state: state,\n    is_closed: isClosed,\n    customer_email: ticket.customer?.email || '',\n    customer_name: [ticket.customer?.firstname, ticket.customer?.lastname].filter(Boolean).join(' ') || '',\n    close_at: ticket.close_at || ticket.updated_at,\n    zammad_url: `https://helpdesk.aiqso.io/#ticket/zoom/${ticket.id}`\n  }\n}];"
       },
-      "id": "extract-close",
-      "name": "Extract Close Data",
+      "id": "config-extract-close",
+      "name": "Config & Extract Close",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [470, 300]
@@ -61,7 +61,7 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/common",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$env.ODOO_DB, $env.ODOO_USERNAME, $env.ODOO_API_KEY, {}] }, id: 1 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'common', method: 'authenticate', args: [$('Config & Extract Close').item.json.odoo_db, $('Config & Extract Close').item.json.odoo_username, $('Config & Extract Close').item.json.odoo_api_key, {}] }, id: 1 }) }}",
         "options": {}
       },
       "id": "odoo-auth-close",
@@ -76,7 +76,7 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'crm.lead', 'search_read', [[['name', 'ilike', '[Zammad #' + $('Extract Close Data').item.json.ticket_number + ']']]], { fields: ['id', 'name', 'stage_id'], limit: 1 } ] }, id: 2 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $('Config & Extract Close').item.json.odoo_db, $('Odoo Authenticate').item.json.result, $('Config & Extract Close').item.json.odoo_api_key, 'crm.lead', 'search_read', [[['name', 'ilike', '[Zammad #' + $('Config & Extract Close').item.json.ticket_number + ']']]], { fields: ['id', 'name', 'stage_id'], limit: 1 } ] }, id: 2 }) }}",
         "options": {}
       },
       "id": "find-lead",
@@ -121,7 +121,7 @@
         "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $env.ODOO_DB, $('Odoo Authenticate').item.json.result, $env.ODOO_API_KEY, 'crm.lead', 'message_post', [$('Find Matching Lead').item.json.result[0].id], { body: '<p><strong>✅ Zammad Ticket #' + $('Extract Close Data').item.json.ticket_number + ' Closed</strong></p><p>Ticket resolved at ' + $('Extract Close Data').item.json.close_at + '</p><p><a href=\"' + $('Extract Close Data').item.json.zammad_url + '\">View in Zammad</a></p>', message_type: 'comment', subtype_xmlid: 'mail.mt_note' } ] }, id: 3 }) }}",
+        "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [ $('Config & Extract Close').item.json.odoo_db, $('Odoo Authenticate').item.json.result, $('Config & Extract Close').item.json.odoo_api_key, 'crm.lead', 'message_post', [$('Find Matching Lead').item.json.result[0].id], { body: '<p><strong>Zammad Ticket #' + $('Config & Extract Close').item.json.ticket_number + ' Closed</strong></p><p>Resolved at ' + $('Config & Extract Close').item.json.close_at + '</p><p><a href=\"' + $('Config & Extract Close').item.json.zammad_url + '\">View in Zammad</a></p>', message_type: 'comment', subtype_xmlid: 'mail.mt_note' } ] }, id: 3 }) }}",
         "options": {}
       },
       "id": "log-close-note",
@@ -133,7 +133,7 @@
     {
       "parameters": {
         "channel": "#crm-updates",
-        "text": "=:white_check_mark: *Support Ticket Resolved*\n\n*Ticket:* #{{ $('Extract Close Data').item.json.ticket_number }}\n*Title:* {{ $('Extract Close Data').item.json.title }}\n*Customer:* {{ $('Extract Close Data').item.json.customer_name || $('Extract Close Data').item.json.customer_email }}\n\n<{{ $('Extract Close Data').item.json.zammad_url }}|View in Zammad>"
+        "text": "=:white_check_mark: *Support Ticket Resolved*\n\n*Ticket:* #{{ $('Config & Extract Close').item.json.ticket_number }}\n*Title:* {{ $('Config & Extract Close').item.json.title }}\n*Customer:* {{ $('Config & Extract Close').item.json.customer_name || $('Config & Extract Close').item.json.customer_email }}\n\n<{{ $('Config & Extract Close').item.json.zammad_url }}|View in Zammad>"
       },
       "id": "slack-close",
       "name": "Slack Close Notification",
@@ -155,121 +155,37 @@
   ],
   "connections": {
     "Zammad Close Webhook": {
-      "main": [
-        [
-          {
-            "node": "Extract Close Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Config & Extract Close", "type": "main", "index": 0 } ]]
     },
-    "Extract Close Data": {
-      "main": [
-        [
-          {
-            "node": "Is Closed?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+    "Config & Extract Close": {
+      "main": [[ { "node": "Is Closed?", "type": "main", "index": 0 } ]]
     },
     "Is Closed?": {
       "main": [
-        [
-          {
-            "node": "Odoo Authenticate",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Respond OK",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Odoo Authenticate", "type": "main", "index": 0 }],
+        [{ "node": "Respond OK", "type": "main", "index": 0 }]
       ]
     },
     "Odoo Authenticate": {
-      "main": [
-        [
-          {
-            "node": "Find Matching Lead",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Find Matching Lead", "type": "main", "index": 0 } ]]
     },
     "Find Matching Lead": {
-      "main": [
-        [
-          {
-            "node": "Lead Found?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Lead Found?", "type": "main", "index": 0 } ]]
     },
     "Lead Found?": {
       "main": [
-        [
-          {
-            "node": "Log Close Note",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Slack Close Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        [{ "node": "Log Close Note", "type": "main", "index": 0 }],
+        [{ "node": "Slack Close Notification", "type": "main", "index": 0 }]
       ]
     },
     "Log Close Note": {
-      "main": [
-        [
-          {
-            "node": "Slack Close Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Slack Close Notification", "type": "main", "index": 0 } ]]
     },
     "Slack Close Notification": {
-      "main": [
-        [
-          {
-            "node": "Respond OK",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[ { "node": "Respond OK", "type": "main", "index": 0 } ]]
     }
   },
-  "settings": {
-    "executionOrder": "v1"
-  },
+  "settings": { "executionOrder": "v1" },
   "staticData": null,
-  "tags": [
-    {
-      "name": "helpdesk"
-    },
-    {
-      "name": "zammad"
-    },
-    {
-      "name": "CRM"
-    }
-  ]
+  "tags": [{ "name": "helpdesk" }, { "name": "zammad" }, { "name": "CRM" }]
 }
