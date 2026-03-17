@@ -109,9 +109,7 @@ class TestDeduplicationEngine:
 
     def test_find_duplicates_by_source_id(self, engine):
         # No email/phone on lead, so it goes straight to source_id check
-        engine.client.search_read.return_value = [
-            {"id": 5, "name": "Permit Lead", "email_from": None, "phone": None}
-        ]
+        engine.client.search_read.return_value = [{"id": 5, "name": "Permit Lead", "email_from": None, "phone": None}]
         lead = Lead(name="Test", source_id="PERMIT-123")
         matches = engine.find_lead_duplicates(lead)
         assert len(matches) >= 1
@@ -121,10 +119,28 @@ class TestDeduplicationEngine:
 
     def test_merge_leads(self, engine):
         engine.client.read.side_effect = [
-            [{"name": "Winner", "email_from": "a@b.com", "phone": None, "partner_name": "Acme",
-              "description": "Main lead", "expected_revenue": 100, "contact_name": "John"}],
-            [{"name": "Loser", "email_from": None, "phone": "555-1234", "partner_name": "Acme",
-              "description": "Duplicate", "expected_revenue": 50, "contact_name": None}],
+            [
+                {
+                    "name": "Winner",
+                    "email_from": "a@b.com",
+                    "phone": None,
+                    "partner_name": "Acme",
+                    "description": "Main lead",
+                    "expected_revenue": 100,
+                    "contact_name": "John",
+                }
+            ],
+            [
+                {
+                    "name": "Loser",
+                    "email_from": None,
+                    "phone": "555-1234",
+                    "partner_name": "Acme",
+                    "description": "Duplicate",
+                    "expected_revenue": 50,
+                    "contact_name": None,
+                }
+            ],
         ]
         engine.client.write.return_value = True
 

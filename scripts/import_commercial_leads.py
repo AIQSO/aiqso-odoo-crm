@@ -194,7 +194,7 @@ class OdooCommercialImporter:
                     "is_company": True,
                     "company_type": "company",
                     "parent_id": umbrella_id,
-                    "comment": f'{city} commercial leads imported on {datetime.now().strftime("%Y-%m-%d %H:%M")}',
+                    "comment": f"{city} commercial leads imported on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
                     "category_id": [
                         (4, category_ids["parent"]),
                         (4, category_ids["construction"]),
@@ -284,9 +284,9 @@ class OdooCommercialImporter:
             print(f"✗ File not found: {csv_path}")
             sys.exit(1)
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("📊 COMMERCIAL LEADS IMPORT")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"File: {csv_path}")
         if city_filter:
             print(f"Filter: Only {city_filter}")
@@ -329,9 +329,9 @@ class OdooCommercialImporter:
 
         # Process each city
         for city, city_rows in cities.items():
-            print(f"\n{'='*40}")
+            print(f"\n{'=' * 40}")
             print(f"🏙️  Importing {city} ({len(city_rows)} records)")
-            print(f"{'='*40}")
+            print(f"{'=' * 40}")
 
             # Create lead list company for this city (side effect, ID not needed)
             self.get_or_create_list_company(city, category_ids)
@@ -420,9 +420,9 @@ class OdooCommercialImporter:
             total_stats["by_city"][city] = city_stats
 
         # Print summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("✅ IMPORT COMPLETE")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"   Total Leads Created: {total_stats['leads_created']}")
         print(f"   Total Skipped:       {total_stats['skipped']}")
         print("\n   By City:")

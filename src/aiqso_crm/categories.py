@@ -11,18 +11,18 @@ if TYPE_CHECKING:
 
 # Standard category colors matching Odoo's color palette
 CATEGORY_COLORS: dict[str, int] = {
-    "Lead List": 10,       # Purple
-    "For Sale": 11,        # Pink
+    "Lead List": 10,  # Purple
+    "For Sale": 11,  # Pink
     "Outreach Target": 4,  # Light blue
-    "Construction": 2,     # Orange
-    "Healthcare": 8,       # Dark purple
-    "Technology": 7,       # Dark blue
-    "Government": 9,       # Teal
-    "Real Estate": 3,      # Green
-    "Premium": 6,          # Red
-    "High Value": 5,       # Yellow
-    "Medium Value": 3,     # Green
-    "Low Value": 1,        # Gray
+    "Construction": 2,  # Orange
+    "Healthcare": 8,  # Dark purple
+    "Technology": 7,  # Dark blue
+    "Government": 9,  # Teal
+    "Real Estate": 3,  # Green
+    "Premium": 6,  # Red
+    "High Value": 5,  # Yellow
+    "Medium Value": 3,  # Green
+    "Low Value": 1,  # Gray
 }
 
 TIER_TAG_NAMES: dict[ValuationTier, str] = {
@@ -63,14 +63,10 @@ class CategoryManager:
         }
 
         if industry:
-            result["industry"] = self.get_or_create(
-                industry, parent_id, CATEGORY_COLORS.get(industry, 2)
-            )
+            result["industry"] = self.get_or_create(industry, parent_id, CATEGORY_COLORS.get(industry, 2))
 
         for _tier, tag_name in TIER_TAG_NAMES.items():
-            result["value_tiers"][tag_name] = self.get_or_create(
-                tag_name, parent_id, CATEGORY_COLORS.get(tag_name, 0)
-            )
+            result["value_tiers"][tag_name] = self.get_or_create(tag_name, parent_id, CATEGORY_COLORS.get(tag_name, 0))
 
         return result
 

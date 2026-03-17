@@ -20,11 +20,13 @@ class ScoringWeights:
     valuation_low: float = 5.0
     has_permit: float = 10.0
     has_contact_role: float = 5.0
-    source_weights: dict[str, float] = field(default_factory=lambda: {
-        "accela": 5.0,
-        "samgov": 8.0,
-        "api_ingest": 3.0,
-    })
+    source_weights: dict[str, float] = field(
+        default_factory=lambda: {
+            "accela": 5.0,
+            "samgov": 8.0,
+            "api_ingest": 3.0,
+        }
+    )
 
 
 class LeadScoringEngine:

@@ -133,7 +133,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "LEAD-DFW-BIZ-YR",
         "description_sale": (
-            "DFW Permit Leads - Business Plan (Annual billing). " "Same as Business but billed annually at $649/mo."
+            "DFW Permit Leads - Business Plan (Annual billing). Same as Business but billed annually at $649/mo."
         ),
         "categ_id": 1,
     },
@@ -144,8 +144,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "LEAD-DFW-ENT-YR",
         "description_sale": (
-            "DFW Permit Leads - Enterprise Plan (Annual billing). "
-            "Same as Enterprise but billed annually at $1199/mo."
+            "DFW Permit Leads - Enterprise Plan (Annual billing). Same as Enterprise but billed annually at $1199/mo."
         ),
         "categ_id": 1,
     },
@@ -156,7 +155,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "LEAD-DFW-AGENCY-YR",
         "description_sale": (
-            "DFW Permit Leads - Agency Plan (Annual billing). " "Same as Agency but billed annually at $1999/mo."
+            "DFW Permit Leads - Agency Plan (Annual billing). Same as Agency but billed annually at $1999/mo."
         ),
         "categ_id": 1,
     },
@@ -167,7 +166,7 @@ PRODUCTS = [
         "list_price": 0.00,  # Quote-based
         "invoice_policy": "delivery",
         "default_code": "LEAD-CUSTOM",
-        "description_sale": ("Custom lead generation project. " "Price determined by scope - contact sales for quote."),
+        "description_sale": ("Custom lead generation project. Price determined by scope - contact sales for quote."),
         "categ_id": 1,
     },
     # =========================================================================
@@ -192,7 +191,7 @@ PRODUCTS = [
         "invoice_policy": "delivery",
         "default_code": "AI-PHONE-HR",
         "description_sale": (
-            "AI Phone Agent usage - per hour. " "Automated call handling for auto shops, salons, medical offices."
+            "AI Phone Agent usage - per hour. Automated call handling for auto shops, salons, medical offices."
         ),
         "categ_id": 1,
     },
@@ -203,8 +202,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "AI-PHONE-MO",
         "description_sale": (
-            "AI Phone Agent - Monthly subscription. "
-            "Unlimited calls, custom voice, CRM integration, call transcripts."
+            "AI Phone Agent - Monthly subscription. Unlimited calls, custom voice, CRM integration, call transcripts."
         ),
         "categ_id": 1,
     },
@@ -255,7 +253,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "SEO-SCAN",
         "description_sale": (
-            "One-time website SEO scan. " "Technical health check, page speed analysis, mobile-friendliness."
+            "One-time website SEO scan. Technical health check, page speed analysis, mobile-friendliness."
         ),
         "categ_id": 1,
     },
@@ -280,7 +278,7 @@ PRODUCTS = [
         "list_price": 0.00,  # Quote-based
         "invoice_policy": "delivery",
         "default_code": "DEV-N8N",
-        "description_sale": ("Custom n8n automation workflow build. " "Fixed price per workflow - contact for quote."),
+        "description_sale": ("Custom n8n automation workflow build. Fixed price per workflow - contact for quote."),
         "categ_id": 1,
     },
     {
@@ -289,9 +287,7 @@ PRODUCTS = [
         "list_price": 0.00,  # Quote-based
         "invoice_policy": "delivery",
         "default_code": "DEV-CUSTOM",
-        "description_sale": (
-            "Custom software development project. " "Web apps, APIs, integrations - contact for quote."
-        ),
+        "description_sale": ("Custom software development project. Web apps, APIs, integrations - contact for quote."),
         "categ_id": 1,
     },
     # =========================================================================
@@ -317,7 +313,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "RPC-PRO",
         "description_sale": (
-            "White-label blockchain RPC - Professional. " "300M requests/month, 10 endpoints, priority support."
+            "White-label blockchain RPC - Professional. 300M requests/month, 10 endpoints, priority support."
         ),
         "categ_id": 1,
     },
@@ -328,7 +324,7 @@ PRODUCTS = [
         "invoice_policy": "order",
         "default_code": "RPC-ENT",
         "description_sale": (
-            "White-label blockchain RPC - Enterprise. " "Custom request limits, dedicated infrastructure, SLA."
+            "White-label blockchain RPC - Enterprise. Custom request limits, dedicated infrastructure, SLA."
         ),
         "categ_id": 1,
     },
@@ -366,7 +362,7 @@ PRODUCTS = [
         "list_price": 100.00,
         "invoice_policy": "delivery",
         "default_code": "SUPPORT-HR",
-        "description_sale": ("Ad-hoc technical support - per hour. " "Troubleshooting, configuration, training."),
+        "description_sale": ("Ad-hoc technical support - per hour. Troubleshooting, configuration, training."),
         "categ_id": 1,
     },
     # =========================================================================
@@ -568,7 +564,7 @@ def sync_products(dry_run: bool = False) -> dict[str, list[str]]:
             # Check if price needs update
             if abs(existing_price - new_price) > 0.01:
                 if dry_run:
-                    print(f"  [update] {product['name']} [{code}]: " f"${existing_price:.2f} -> ${new_price:.2f}")
+                    print(f"  [update] {product['name']} [{code}]: ${existing_price:.2f} -> ${new_price:.2f}")
                 else:
                     models.execute_kw(
                         db,
@@ -584,7 +580,7 @@ def sync_products(dry_run: bool = False) -> dict[str, list[str]]:
                             },
                         ],
                     )
-                    print(f"  [update] {product['name']} [{code}]: " f"${existing_price:.2f} -> ${new_price:.2f}")
+                    print(f"  [update] {product['name']} [{code}]: ${existing_price:.2f} -> ${new_price:.2f}")
                 results["updated"].append(f"{product['name']} [{code}]")
             else:
                 results["skipped"].append(f"{product['name']} [{code}]")
@@ -602,7 +598,7 @@ def sync_products(dry_run: bool = False) -> dict[str, list[str]]:
                     "create",
                     [product],
                 )
-                print(f"  [create] {product['name']} [{code}]: " f"${product['list_price']:.2f} (ID: {product_id})")
+                print(f"  [create] {product['name']} [{code}]: ${product['list_price']:.2f} (ID: {product_id})")
             results["created"].append(f"{product['name']} [{code}]")
 
     return results

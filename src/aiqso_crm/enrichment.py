@@ -68,14 +68,14 @@ Industry:"""
     async def assess_lead_quality(self, lead: Lead) -> LeadAnalysis:
         """AI assessment of lead quality and recommended actions."""
         lead_info = f"""Lead: {lead.name}
-Company: {lead.company_name or 'Unknown'}
-Contact: {lead.contact_name or 'Unknown'}
-Email: {lead.contact_email or 'None'}
-Phone: {lead.contact_phone or 'None'}
+Company: {lead.company_name or "Unknown"}
+Contact: {lead.contact_name or "Unknown"}
+Email: {lead.contact_email or "None"}
+Phone: {lead.contact_phone or "None"}
 Revenue: ${lead.expected_revenue:,.0f}
-Industry: {lead.industry or 'Unknown'}
+Industry: {lead.industry or "Unknown"}
 Source: {lead.source.value}
-Permit: {lead.permit_number or 'None'}"""
+Permit: {lead.permit_number or "None"}"""
 
         system = "You are a B2B sales analyst. Assess lead quality and provide actionable insights. Respond in JSON."
         prompt = f"""Analyze this lead and respond with ONLY a JSON object:
@@ -112,11 +112,11 @@ Permit: {lead.permit_number or 'None'}"""
 
     async def generate_outreach_draft(self, lead: Lead, template: str | None = None) -> str:
         """Generate personalized outreach email draft."""
-        lead_context = f"""Contact: {lead.contact_name or 'Decision Maker'}
-Company: {lead.company_name or 'their company'}
-Industry: {lead.industry or 'their industry'}
+        lead_context = f"""Contact: {lead.contact_name or "Decision Maker"}
+Company: {lead.company_name or "their company"}
+Industry: {lead.industry or "their industry"}
 Project Value: ${lead.expected_revenue:,.0f}
-Permit Type: {lead.permit_type or 'N/A'}"""
+Permit Type: {lead.permit_type or "N/A"}"""
 
         prompt = f"""Write a short, professional outreach email (3-4 sentences) for this B2B prospect.
 Mention their specific project if relevant. Include a clear call to action.

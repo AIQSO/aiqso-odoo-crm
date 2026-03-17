@@ -106,10 +106,7 @@ class SyncStateDB:
     def get_last_sync(self, account_id: str) -> dict[str, Any] | None:
         """Get last sync info for an account."""
         with self._get_connection() as conn:
-            row = conn.execute(
-                "SELECT * FROM sync_state WHERE account_id = ?",
-                (account_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM sync_state WHERE account_id = ?", (account_id,)).fetchone()
             return dict(row) if row else None
 
     def update_sync_state(
@@ -122,7 +119,8 @@ class SyncStateDB:
         now = datetime.now().isoformat()
 
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT INTO sync_state (
                     account_id, last_sync_at, last_transaction_id,
                     transaction_count, created_at, updated_at
@@ -132,7 +130,9 @@ class SyncStateDB:
                     last_transaction_id = COALESCE(excluded.last_transaction_id, last_transaction_id),
                     transaction_count = transaction_count + excluded.transaction_count,
                     updated_at = excluded.updated_at
-            """, (account_id, now, last_transaction_id, transaction_count, now, now))
+            """,
+                (account_id, now, last_transaction_id, transaction_count, now, now),
+            )
 
     def get_all_sync_states(self) -> list[dict[str, Any]]:
         """Get sync state for all accounts."""
@@ -148,8 +148,7 @@ class SyncStateDB:
         """Check if a transaction has already been processed."""
         with self._get_connection() as conn:
             row = conn.execute(
-                "SELECT 1 FROM processed_transactions WHERE transaction_id = ?",
-                (transaction_id,)
+                "SELECT 1 FROM processed_transactions WHERE transaction_id = ?", (transaction_id,)
             ).fetchone()
             return row is not None
 
@@ -157,8 +156,7 @@ class SyncStateDB:
         """Check if a transaction has already been reconciled."""
         with self._get_connection() as conn:
             row = conn.execute(
-                "SELECT reconciled FROM processed_transactions WHERE transaction_id = ?",
-                (transaction_id,)
+                "SELECT reconciled FROM processed_transactions WHERE transaction_id = ?", (transaction_id,)
             ).fetchone()
             return row is not None and row[0] == 1
 
@@ -175,25 +173,28 @@ class SyncStateDB:
         now = datetime.now().isoformat()
 
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR IGNORE INTO processed_transactions (
                     transaction_id, account_id, amount, transaction_type,
                     description, transaction_date, processed_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                transaction_id, account_id, amount, transaction_type,
-                description, transaction_date, now
-            ))
+            """,
+                (transaction_id, account_id, amount, transaction_type, description, transaction_date, now),
+            )
 
     def get_unreconciled_transactions(self, limit: int = 100) -> list[dict[str, Any]]:
         """Get transactions that haven't been reconciled to invoices."""
         with self._get_connection() as conn:
-            rows = conn.execute("""
+            rows = conn.execute(
+                """
                 SELECT * FROM processed_transactions
                 WHERE reconciled = 0 AND amount > 0
                 ORDER BY transaction_date DESC
                 LIMIT ?
-            """, (limit,)).fetchall()
+            """,
+                (limit,),
+            ).fetchall()
             return [dict(row) for row in rows]
 
     def mark_transaction_reconciled(
@@ -204,11 +205,14 @@ class SyncStateDB:
     ):
         """Mark a transaction as reconciled to an invoice."""
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE processed_transactions
                 SET reconciled = 1, invoice_id = ?, payment_id = ?
                 WHERE transaction_id = ?
-            """, (invoice_id, payment_id, transaction_id))
+            """,
+                (invoice_id, payment_id, transaction_id),
+            )
 
     # =========================================================================
     # Reconciliation Log Methods
@@ -227,22 +231,25 @@ class SyncStateDB:
         now = datetime.now().isoformat()
 
         with self._get_connection() as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 INSERT OR REPLACE INTO reconciliation_log (
                     transaction_id, invoice_id, payment_id, amount,
                     match_type, match_confidence, created_at
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                transaction_id, invoice_id, payment_id,
-                amount, match_type, match_confidence, now
-            ))
+            """,
+                (transaction_id, invoice_id, payment_id, amount, match_type, match_confidence, now),
+            )
 
             # Also update processed_transactions
-            conn.execute("""
+            conn.execute(
+                """
                 UPDATE processed_transactions
                 SET reconciled = 1, invoice_id = ?, payment_id = ?
                 WHERE transaction_id = ?
-            """, (invoice_id, payment_id, transaction_id))
+            """,
+                (invoice_id, payment_id, transaction_id),
+            )
 
     def get_reconciliation_history(
         self,
@@ -252,18 +259,24 @@ class SyncStateDB:
         """Get reconciliation history."""
         with self._get_connection() as conn:
             if invoice_id:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT * FROM reconciliation_log
                     WHERE invoice_id = ?
                     ORDER BY created_at DESC
                     LIMIT ?
-                """, (invoice_id, limit)).fetchall()
+                """,
+                    (invoice_id, limit),
+                ).fetchall()
             else:
-                rows = conn.execute("""
+                rows = conn.execute(
+                    """
                     SELECT * FROM reconciliation_log
                     ORDER BY created_at DESC
                     LIMIT ?
-                """, (limit,)).fetchall()
+                """,
+                    (limit,),
+                ).fetchall()
             return [dict(row) for row in rows]
 
     # =========================================================================
@@ -273,9 +286,7 @@ class SyncStateDB:
     def get_stats(self) -> dict[str, Any]:
         """Get sync statistics."""
         with self._get_connection() as conn:
-            total = conn.execute(
-                "SELECT COUNT(*) as count FROM processed_transactions"
-            ).fetchone()["count"]
+            total = conn.execute("SELECT COUNT(*) as count FROM processed_transactions").fetchone()["count"]
 
             reconciled = conn.execute(
                 "SELECT COUNT(*) as count FROM processed_transactions WHERE reconciled = 1"
@@ -285,9 +296,7 @@ class SyncStateDB:
                 "SELECT COUNT(*) as count FROM processed_transactions WHERE reconciled = 0 AND amount > 0"
             ).fetchone()["count"]
 
-            last_sync = conn.execute(
-                "SELECT MAX(last_sync_at) as last FROM sync_state"
-            ).fetchone()["last"]
+            last_sync = conn.execute("SELECT MAX(last_sync_at) as last FROM sync_state").fetchone()["last"]
 
             return {
                 "total_transactions": total,

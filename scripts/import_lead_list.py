@@ -247,7 +247,7 @@ class OdooLeadImporter:
                     "is_company": True,
                     "company_type": "company",
                     "parent_id": umbrella_id,
-                    "comment": f'Lead list imported on {datetime.now().strftime("%Y-%m-%d %H:%M")}',
+                    "comment": f"Lead list imported on {datetime.now().strftime('%Y-%m-%d %H:%M')}",
                     "category_id": cats,
                 },
             )
@@ -310,9 +310,9 @@ class OdooLeadImporter:
         if not list_name:
             list_name = f"Lead List - {csv_path.stem}"
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("📊 LEAD LIST IMPORT")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"File: {csv_path}")
         print(f"List Name: {list_name}")
         print(f"Industry: {industry or 'General'}")
@@ -458,9 +458,9 @@ class OdooLeadImporter:
                 stats["skipped"] += 1
 
         # Print summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("✅ IMPORT COMPLETE")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         stats["companies_created"] = len(seen_company_ids)
         stats["contacts_created"] = len(seen_contact_ids)
         print(f"   Companies created/found: {stats['companies_created']} (unique)")

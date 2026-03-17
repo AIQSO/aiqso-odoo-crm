@@ -67,44 +67,17 @@ async def notify_new_deposit(
     date_str = transaction_date or datetime.now().strftime("%Y-%m-%d")
 
     blocks = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "💰 New Deposit Received",
-                "emoji": True
-            }
-        },
+        {"type": "header", "text": {"type": "plain_text", "text": "💰 New Deposit Received", "emoji": True}},
         {
             "type": "section",
             "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Amount:*\n${amount:,.2f}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*From:*\n{counterparty}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Account:*\n{account_name}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Date:*\n{date_str}"
-                }
-            ]
+                {"type": "mrkdwn", "text": f"*Amount:*\n${amount:,.2f}"},
+                {"type": "mrkdwn", "text": f"*From:*\n{counterparty}"},
+                {"type": "mrkdwn", "text": f"*Account:*\n{account_name}"},
+                {"type": "mrkdwn", "text": f"*Date:*\n{date_str}"},
+            ],
         },
-        {
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"Transaction ID: `{transaction_id[:16]}...`"
-                }
-            ]
-        }
+        {"type": "context", "elements": [{"type": "mrkdwn", "text": f"Transaction ID: `{transaction_id[:16]}...`"}]},
     ]
 
     return await send_slack_message(blocks, f"New deposit: ${amount:,.2f} from {counterparty}")
@@ -122,35 +95,16 @@ async def notify_reconciliation(
     confidence_emoji = "🟢" if confidence >= 0.8 else "🟡" if confidence >= 0.5 else "🟠"
 
     blocks = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "✅ Payment Reconciled",
-                "emoji": True
-            }
-        },
+        {"type": "header", "text": {"type": "plain_text", "text": "✅ Payment Reconciled", "emoji": True}},
         {
             "type": "section",
             "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Amount:*\n${amount:,.2f}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Invoice:*\n{invoice_number}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*From:*\n{counterparty}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Match:*\n{confidence_emoji} {match_type} ({confidence:.0%})"
-                }
-            ]
-        }
+                {"type": "mrkdwn", "text": f"*Amount:*\n${amount:,.2f}"},
+                {"type": "mrkdwn", "text": f"*Invoice:*\n{invoice_number}"},
+                {"type": "mrkdwn", "text": f"*From:*\n{counterparty}"},
+                {"type": "mrkdwn", "text": f"*Match:*\n{confidence_emoji} {match_type} ({confidence:.0%})"},
+            ],
+        },
     ]
 
     return await send_slack_message(blocks, f"Reconciled ${amount:,.2f} to {invoice_number}")
@@ -167,47 +121,28 @@ async def notify_unmatched_deposit(
     date_str = transaction_date or datetime.now().strftime("%Y-%m-%d")
 
     blocks = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "⚠️ Unmatched Deposit",
-                "emoji": True
-            }
-        },
+        {"type": "header", "text": {"type": "plain_text", "text": "⚠️ Unmatched Deposit", "emoji": True}},
         {
             "type": "section",
             "text": {
                 "type": "mrkdwn",
-                "text": f"A deposit of *${amount:,.2f}* from *{counterparty}* could not be automatically matched to an invoice."
-            }
+                "text": f"A deposit of *${amount:,.2f}* from *{counterparty}* could not be automatically matched to an invoice.",
+            },
         },
         {
             "type": "section",
             "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Amount:*\n${amount:,.2f}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*From:*\n{counterparty}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Date:*\n{date_str}"
-                }
-            ]
+                {"type": "mrkdwn", "text": f"*Amount:*\n${amount:,.2f}"},
+                {"type": "mrkdwn", "text": f"*From:*\n{counterparty}"},
+                {"type": "mrkdwn", "text": f"*Date:*\n{date_str}"},
+            ],
         },
         {
             "type": "context",
             "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": "💡 Create a matching invoice in Odoo or manually reconcile this payment."
-                }
-            ]
-        }
+                {"type": "mrkdwn", "text": "💡 Create a matching invoice in Odoo or manually reconcile this payment."}
+            ],
+        },
     ]
 
     return await send_slack_message(blocks, f"Unmatched deposit: ${amount:,.2f} from {counterparty}")
@@ -226,47 +161,25 @@ async def notify_sync_summary(
         return False  # Don't notify if nothing new
 
     blocks = [
-        {
-            "type": "header",
-            "text": {
-                "type": "plain_text",
-                "text": "📊 Mercury Sync Summary",
-                "emoji": True
-            }
-        },
+        {"type": "header", "text": {"type": "plain_text", "text": "📊 Mercury Sync Summary", "emoji": True}},
         {
             "type": "section",
             "fields": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"*New Transactions:*\n{new_transactions}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Deposits:*\n{deposits}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Auto-Reconciled:*\n{reconciled}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*Needs Review:*\n{unmatched}"
-                }
-            ]
+                {"type": "mrkdwn", "text": f"*New Transactions:*\n{new_transactions}"},
+                {"type": "mrkdwn", "text": f"*Deposits:*\n{deposits}"},
+                {"type": "mrkdwn", "text": f"*Auto-Reconciled:*\n{reconciled}"},
+                {"type": "mrkdwn", "text": f"*Needs Review:*\n{unmatched}"},
+            ],
         },
     ]
 
     if total_deposited > 0:
-        blocks.append({
-            "type": "context",
-            "elements": [
-                {
-                    "type": "mrkdwn",
-                    "text": f"💵 Total deposited: *${total_deposited:,.2f}*"
-                }
-            ]
-        })
+        blocks.append(
+            {
+                "type": "context",
+                "elements": [{"type": "mrkdwn", "text": f"💵 Total deposited: *${total_deposited:,.2f}*"}],
+            }
+        )
 
     return await send_slack_message(blocks, f"Mercury sync: {new_transactions} new, {reconciled} reconciled")
 

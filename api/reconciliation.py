@@ -58,9 +58,9 @@ class InvoiceMatcher:
     # Patterns for finding invoice numbers in transaction descriptions
     INVOICE_PATTERNS: ClassVar[list[str]] = [
         r"INV[/-]?\d{4}[/-]\d+",  # INV/2025/0001, INV-2025-0001
-        r"Invoice\s*#?\s*(\d+)",   # Invoice #123, Invoice 123
-        r"Inv\s*#?\s*(\d+)",       # Inv #123
-        r"AIQSO[/-]?\d+",          # AIQSO-001
+        r"Invoice\s*#?\s*(\d+)",  # Invoice #123, Invoice 123
+        r"Inv\s*#?\s*(\d+)",  # Inv #123
+        r"AIQSO[/-]?\d+",  # AIQSO-001
     ]
 
     # Patterns for email extraction
@@ -114,8 +114,14 @@ class InvoiceMatcher:
             "search_read",
             base_filters,
             fields=[
-                "id", "name", "partner_id", "amount_total", "amount_residual",
-                "invoice_date", "ref", "narration",
+                "id",
+                "name",
+                "partner_id",
+                "amount_total",
+                "amount_residual",
+                "invoice_date",
+                "ref",
+                "narration",
             ],
         )
 
@@ -202,11 +208,13 @@ class InvoiceMatcher:
         partner_id = partners[0]["id"]
 
         # Find invoice for this partner with matching amount
-        invoices = self._get_open_invoices([
-            ["partner_id", "=", partner_id],
-            ["amount_residual", ">=", amount - 0.01],
-            ["amount_residual", "<=", amount + 0.01],
-        ])
+        invoices = self._get_open_invoices(
+            [
+                ["partner_id", "=", partner_id],
+                ["amount_residual", ">=", amount - 0.01],
+                ["amount_residual", "<=", amount + 0.01],
+            ]
+        )
 
         if invoices:
             invoice = invoices[0]
@@ -245,10 +253,12 @@ class InvoiceMatcher:
             return MatchResult(matched=False)
 
         # Find invoices with matching amount
-        invoices = self._get_open_invoices([
-            ["amount_residual", ">=", amount - 0.01],
-            ["amount_residual", "<=", amount + 0.01],
-        ])
+        invoices = self._get_open_invoices(
+            [
+                ["amount_residual", ">=", amount - 0.01],
+                ["amount_residual", "<=", amount + 0.01],
+            ]
+        )
 
         if not invoices:
             return MatchResult(matched=False)
@@ -567,18 +577,22 @@ async def auto_reconcile_deposits(
 
             if recon.success:
                 results["reconciled"] += 1
-                results["details"].append({
-                    "transaction_id": txn_id,
-                    "invoice_id": recon.invoice_id,
-                    "payment_id": recon.payment_id,
-                    "amount": float(txn.get("amount", 0)),
-                    "match_type": match.match_type,
-                })
+                results["details"].append(
+                    {
+                        "transaction_id": txn_id,
+                        "invoice_id": recon.invoice_id,
+                        "payment_id": recon.payment_id,
+                        "amount": float(txn.get("amount", 0)),
+                        "match_type": match.match_type,
+                    }
+                )
             else:
-                results["errors"].append({
-                    "transaction_id": txn_id,
-                    "error": recon.error,
-                })
+                results["errors"].append(
+                    {
+                        "transaction_id": txn_id,
+                        "error": recon.error,
+                    }
+                )
         else:
             # Mark as processed but not reconciled
             sync_db.mark_transaction_processed(

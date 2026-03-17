@@ -101,9 +101,19 @@ async def crm_search_leads(
         domain.append(("expected_revenue", ">=", min_revenue))
 
     leads = client.search_read(
-        "crm.lead", domain,
-        fields=["name", "partner_name", "email_from", "phone", "expected_revenue",
-                "stage_id", "create_date", "ref", "contact_name"],
+        "crm.lead",
+        domain,
+        fields=[
+            "name",
+            "partner_name",
+            "email_from",
+            "phone",
+            "expected_revenue",
+            "stage_id",
+            "create_date",
+            "ref",
+            "contact_name",
+        ],
         limit=limit,
         order="create_date desc",
     )
@@ -151,11 +161,13 @@ async def crm_create_lead(
     # Check for duplicates
     duplicates = dedup.find_lead_duplicates(lead)
     if duplicates:
-        return _json_text({
-            "warning": "Potential duplicates found",
-            "duplicates": [d.model_dump() for d in duplicates[:5]],
-            "message": "Use crm_create_lead_force to create anyway, or crm_update_lead to update existing.",
-        })
+        return _json_text(
+            {
+                "warning": "Potential duplicates found",
+                "duplicates": [d.model_dump() for d in duplicates[:5]],
+                "message": "Use crm_create_lead_force to create anyway, or crm_update_lead to update existing.",
+            }
+        )
 
     lead_id = client.create("crm.lead", lead.to_odoo_lead_values())
     return _json_text({"success": True, "lead_id": lead_id, "name": name})
@@ -215,10 +227,20 @@ async def crm_score_lead(lead_id: int) -> list[TextContent]:
     client = get_client()
     scorer = get_scorer()
 
-    leads = client.read("crm.lead", [lead_id], fields=[
-        "name", "email_from", "phone", "partner_name", "expected_revenue",
-        "contact_name", "ref", "description",
-    ])
+    leads = client.read(
+        "crm.lead",
+        [lead_id],
+        fields=[
+            "name",
+            "email_from",
+            "phone",
+            "partner_name",
+            "expected_revenue",
+            "contact_name",
+            "ref",
+            "description",
+        ],
+    )
     if not leads:
         return _text(f"Lead {lead_id} not found")
 
@@ -235,17 +257,19 @@ async def crm_score_lead(lead_id: int) -> list[TextContent]:
     score = scorer.score(lead)
     tier = scorer.tier(lead.expected_revenue)
 
-    return _json_text({
-        "lead_id": lead_id,
-        "score": round(score, 1),
-        "tier": tier.value,
-        "breakdown": {
-            "has_email": bool(lead.contact_email),
-            "has_phone": bool(lead.contact_phone),
-            "has_company": bool(lead.company_name),
-            "revenue": lead.expected_revenue,
-        },
-    })
+    return _json_text(
+        {
+            "lead_id": lead_id,
+            "score": round(score, 1),
+            "tier": tier.value,
+            "breakdown": {
+                "has_email": bool(lead.contact_email),
+                "has_phone": bool(lead.contact_phone),
+                "has_company": bool(lead.company_name),
+                "revenue": lead.expected_revenue,
+            },
+        }
+    )
 
 
 @server.tool()
@@ -254,10 +278,20 @@ async def crm_enrich_lead(lead_id: int) -> list[TextContent]:
     client = get_client()
     enrichment = get_enrichment()
 
-    leads = client.read("crm.lead", [lead_id], fields=[
-        "name", "email_from", "phone", "partner_name", "expected_revenue",
-        "contact_name", "description", "ref",
-    ])
+    leads = client.read(
+        "crm.lead",
+        [lead_id],
+        fields=[
+            "name",
+            "email_from",
+            "phone",
+            "partner_name",
+            "expected_revenue",
+            "contact_name",
+            "description",
+            "ref",
+        ],
+    )
     if not leads:
         return _text(f"Lead {lead_id} not found")
 
@@ -302,18 +336,22 @@ async def crm_pipeline_summary() -> list[TextContent]:
         revenue = sum(float(lead.get("expected_revenue") or 0) for lead in leads)
         total_leads += count
         total_revenue += revenue
-        summary.append({
-            "stage": stage["name"],
-            "stage_id": stage["id"],
-            "leads": count,
-            "revenue": round(revenue, 2),
-        })
+        summary.append(
+            {
+                "stage": stage["name"],
+                "stage_id": stage["id"],
+                "leads": count,
+                "revenue": round(revenue, 2),
+            }
+        )
 
-    return _json_text({
-        "stages": summary,
-        "total_leads": total_leads,
-        "total_revenue": round(total_revenue, 2),
-    })
+    return _json_text(
+        {
+            "stages": summary,
+            "total_leads": total_leads,
+            "total_revenue": round(total_revenue, 2),
+        }
+    )
 
 
 @server.tool()
@@ -331,6 +369,7 @@ async def crm_stale_leads(days: int = 30, limit: int = 50) -> list[TextContent]:
     """Find leads with no activity in the last N days."""
     client = get_client()
     from datetime import datetime, timedelta
+
     cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
 
     leads = client.search_read(
@@ -363,10 +402,12 @@ async def crm_find_duplicates(
         company_name=company_name,
     )
     matches = dedup.find_lead_duplicates(lead)
-    return _json_text({
-        "duplicates_found": len(matches),
-        "matches": [m.model_dump() for m in matches],
-    })
+    return _json_text(
+        {
+            "duplicates_found": len(matches),
+            "matches": [m.model_dump() for m in matches],
+        }
+    )
 
 
 @server.tool()
@@ -395,7 +436,8 @@ async def crm_search_customers(
         domain = [("is_company", "=", is_company), *domain]
 
     customers = client.search_read(
-        "res.partner", domain,
+        "res.partner",
+        domain,
         fields=["name", "email", "phone", "company_type", "city", "is_company", "parent_id"],
         limit=limit,
     )
@@ -412,7 +454,10 @@ async def crm_create_customer(
     """Create a new customer/contact."""
     client = get_client()
     partner_id = client.get_or_create_partner(
-        name=name, is_company=is_company, email=email, phone=phone,
+        name=name,
+        is_company=is_company,
+        email=email,
+        phone=phone,
     )
     return _json_text({"success": True, "partner_id": partner_id, "name": name})
 
@@ -431,7 +476,8 @@ async def crm_list_tags(parent_name: str | None = None) -> list[TextContent]:
         domain.append(("parent_id.name", "=", parent_name))
 
     tags = client.search_read(
-        "res.partner.category", domain,
+        "res.partner.category",
+        domain,
         fields=["name", "color", "parent_id"],
         order="name",
     )
@@ -455,9 +501,7 @@ async def crm_tag_lead(lead_id: int, tag_names: list[str]) -> list[TextContent]:
         tag_id = client.get_or_create_category(name)
         tag_ids.append(tag_id)
 
-    client.write("res.partner", [partner_id], {
-        "category_id": [(4, tid) for tid in tag_ids]
-    })
+    client.write("res.partner", [partner_id], {"category_id": [(4, tid) for tid in tag_ids]})
     return _json_text({"success": True, "partner_id": partner_id, "tags_added": tag_names})
 
 
@@ -523,18 +567,22 @@ async def crm_revenue_forecast() -> list[TextContent]:
         weighted = raw_revenue * weight
         total_weighted += weighted
 
-        forecast.append({
-            "stage": stage["name"],
-            "leads": len(leads),
-            "raw_revenue": round(raw_revenue, 2),
-            "probability": weight,
-            "weighted_revenue": round(weighted, 2),
-        })
+        forecast.append(
+            {
+                "stage": stage["name"],
+                "leads": len(leads),
+                "raw_revenue": round(raw_revenue, 2),
+                "probability": weight,
+                "weighted_revenue": round(weighted, 2),
+            }
+        )
 
-    return _json_text({
-        "forecast": forecast,
-        "total_weighted_revenue": round(total_weighted, 2),
-    })
+    return _json_text(
+        {
+            "forecast": forecast,
+            "total_weighted_revenue": round(total_weighted, 2),
+        }
+    )
 
 
 @server.tool()
@@ -582,7 +630,8 @@ async def crm_list_products(limit: int = 20) -> list[TextContent]:
     """List products and services."""
     client = get_client()
     products = client.search_read(
-        "product.template", [],
+        "product.template",
+        [],
         fields=["name", "list_price", "type", "sale_ok", "default_code"],
         limit=limit,
     )
@@ -595,10 +644,7 @@ async def crm_create_sale_order(partner_id: int, product_ids: list[int]) -> list
     client = get_client()
     order_vals = {
         "partner_id": partner_id,
-        "order_line": [
-            (0, 0, {"product_id": pid, "product_uom_qty": 1})
-            for pid in product_ids
-        ],
+        "order_line": [(0, 0, {"product_id": pid, "product_uom_qty": 1}) for pid in product_ids],
     }
     order_id = client.create("sale.order", order_vals)
     return _json_text({"success": True, "order_id": order_id})

@@ -204,13 +204,15 @@ class MercuryClient:
             total_available += available
             total_current += current
 
-            account_summaries.append({
-                "id": account.get("id"),
-                "name": account.get("name"),
-                "type": account.get("type"),
-                "available_balance": available,
-                "current_balance": current,
-            })
+            account_summaries.append(
+                {
+                    "id": account.get("id"),
+                    "name": account.get("name"),
+                    "type": account.get("type"),
+                    "available_balance": available,
+                    "current_balance": current,
+                }
+            )
 
         return {
             "total_available": total_available,
@@ -247,7 +249,8 @@ class MercuryClient:
 
         # Filter to credits only
         deposits = [
-            t for t in transactions
+            t
+            for t in transactions
             if float(t.get("amount", 0)) > 0  # Positive = credit/deposit
         ]
 

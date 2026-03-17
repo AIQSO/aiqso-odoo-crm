@@ -32,12 +32,15 @@ def connected_client(client):
 
 class TestOdooClientInit:
     def test_from_env(self):
-        with mock.patch.dict(os.environ, {
-            "ODOO_URL": "http://test:8069",
-            "ODOO_DB": "mydb",
-            "ODOO_USERNAME": "user",
-            "ODOO_API_KEY": "key123",
-        }):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "ODOO_URL": "http://test:8069",
+                "ODOO_DB": "mydb",
+                "ODOO_USERNAME": "user",
+                "ODOO_API_KEY": "key123",
+            },
+        ):
             c = OdooClient.from_env()
             assert c.url == "http://test:8069"
             assert c.db == "mydb"

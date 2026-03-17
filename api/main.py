@@ -40,6 +40,7 @@ async def lifespan(app: FastAPI):
     # Startup: Start Mercury sync scheduler
     try:
         from background import start_scheduler
+
         start_scheduler()
     except Exception as e:
         print(f"Warning: Could not start Mercury scheduler: {e}")
@@ -50,6 +51,7 @@ async def lifespan(app: FastAPI):
     try:
         from background import stop_scheduler
         from mercury import close_mercury_client
+
         stop_scheduler()
         await close_mercury_client()
     except Exception:
@@ -74,6 +76,7 @@ app.add_middleware(
 # Include lead management router
 try:
     from leads import router as leads_router
+
     app.include_router(leads_router)
 except ImportError:
     pass  # leads module not available in minimal deployments
@@ -495,6 +498,7 @@ async def get_invoice_by_stripe(stripe_session_id: str, odoo: OdooConnection = D
 # Mercury Bank Integration Endpoints
 # =============================================================================
 
+
 # Mercury Response Models
 class MercuryAccountResponse(BaseModel):
     id: str
@@ -635,17 +639,19 @@ async def get_mercury_transactions(
                     invoice_id = r["invoice_id"]
                     break
 
-            transactions.append(MercuryTransactionResponse(
-                id=txn_id,
-                amount=amount,
-                type="credit" if amount > 0 else "debit",
-                counterparty=txn.get("counterpartyName"),
-                description=txn.get("note"),
-                date=txn.get("postedAt", txn.get("createdAt")),
-                status=txn.get("status", "completed"),
-                reconciled=is_reconciled,
-                invoice_id=invoice_id,
-            ))
+            transactions.append(
+                MercuryTransactionResponse(
+                    id=txn_id,
+                    amount=amount,
+                    type="credit" if amount > 0 else "debit",
+                    counterparty=txn.get("counterpartyName"),
+                    description=txn.get("note"),
+                    date=txn.get("postedAt", txn.get("createdAt")),
+                    status=txn.get("status", "completed"),
+                    reconciled=is_reconciled,
+                    invoice_id=invoice_id,
+                )
+            )
 
         return MercuryTransactionsResponse(
             transactions=transactions,
@@ -799,6 +805,7 @@ async def health_check():
     # Check Mercury
     try:
         from mercury import get_mercury_client
+
         client = get_mercury_client()
         mercury_health = await client.health_check()
         mercury_status = "connected" if mercury_health.get("connected") else "disconnected"

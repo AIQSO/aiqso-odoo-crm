@@ -81,14 +81,16 @@ class DeduplicationEngine:
                 limit=5,
             )
             for r in existing:
-                matches.append(DuplicateMatch(
-                    odoo_id=r["id"],
-                    name=r["name"],
-                    match_type="email",
-                    confidence=1.0,
-                    existing_email=r.get("email_from"),
-                    existing_phone=r.get("phone"),
-                ))
+                matches.append(
+                    DuplicateMatch(
+                        odoo_id=r["id"],
+                        name=r["name"],
+                        match_type="email",
+                        confidence=1.0,
+                        existing_email=r.get("email_from"),
+                        existing_phone=r.get("phone"),
+                    )
+                )
 
         # 2. Phone match
         if lead.contact_phone and not matches:
@@ -102,14 +104,16 @@ class DeduplicationEngine:
                 )
                 for r in existing:
                     if _normalize_phone(r.get("phone")) == phone_digits:
-                        matches.append(DuplicateMatch(
-                            odoo_id=r["id"],
-                            name=r["name"],
-                            match_type="phone",
-                            confidence=0.95,
-                            existing_email=r.get("email_from"),
-                            existing_phone=r.get("phone"),
-                        ))
+                        matches.append(
+                            DuplicateMatch(
+                                odoo_id=r["id"],
+                                name=r["name"],
+                                match_type="phone",
+                                confidence=0.95,
+                                existing_email=r.get("email_from"),
+                                existing_phone=r.get("phone"),
+                            )
+                        )
 
         # 3. Source ID match (permit number, notice ID, etc.)
         if lead.source_id and not matches:
@@ -120,14 +124,16 @@ class DeduplicationEngine:
                 limit=3,
             )
             for r in existing:
-                matches.append(DuplicateMatch(
-                    odoo_id=r["id"],
-                    name=r["name"],
-                    match_type="source_id",
-                    confidence=0.98,
-                    existing_email=r.get("email_from"),
-                    existing_phone=r.get("phone"),
-                ))
+                matches.append(
+                    DuplicateMatch(
+                        odoo_id=r["id"],
+                        name=r["name"],
+                        match_type="source_id",
+                        confidence=0.98,
+                        existing_email=r.get("email_from"),
+                        existing_phone=r.get("phone"),
+                    )
+                )
 
         # 4. Fuzzy company name match
         if lead.company_name and not matches:
@@ -144,14 +150,16 @@ class DeduplicationEngine:
                     if r.get("partner_name"):
                         score = _fuzzy_company_match(lead.company_name, r["partner_name"])
                         if score >= self.fuzzy_threshold:
-                            matches.append(DuplicateMatch(
-                                odoo_id=r["id"],
-                                name=r["name"],
-                                match_type="fuzzy_name",
-                                confidence=score,
-                                existing_email=r.get("email_from"),
-                                existing_phone=r.get("phone"),
-                            ))
+                            matches.append(
+                                DuplicateMatch(
+                                    odoo_id=r["id"],
+                                    name=r["name"],
+                                    match_type="fuzzy_name",
+                                    confidence=score,
+                                    existing_email=r.get("email_from"),
+                                    existing_phone=r.get("phone"),
+                                )
+                            )
 
         # Sort by confidence descending
         matches.sort(key=lambda m: m.confidence, reverse=True)
@@ -171,14 +179,16 @@ class DeduplicationEngine:
                 limit=5,
             )
             for r in existing:
-                matches.append(DuplicateMatch(
-                    odoo_id=r["id"],
-                    name=r["name"],
-                    match_type="email",
-                    confidence=1.0,
-                    existing_email=r.get("email"),
-                    existing_phone=r.get("phone"),
-                ))
+                matches.append(
+                    DuplicateMatch(
+                        odoo_id=r["id"],
+                        name=r["name"],
+                        match_type="email",
+                        confidence=1.0,
+                        existing_email=r.get("email"),
+                        existing_phone=r.get("phone"),
+                    )
+                )
 
         if phone and not matches:
             phone_digits = _normalize_phone(phone)
@@ -191,23 +201,34 @@ class DeduplicationEngine:
                 )
                 for r in existing:
                     if _normalize_phone(r.get("phone")) == phone_digits:
-                        matches.append(DuplicateMatch(
-                            odoo_id=r["id"],
-                            name=r["name"],
-                            match_type="phone",
-                            confidence=0.95,
-                            existing_email=r.get("email"),
-                            existing_phone=r.get("phone"),
-                        ))
+                        matches.append(
+                            DuplicateMatch(
+                                odoo_id=r["id"],
+                                name=r["name"],
+                                match_type="phone",
+                                confidence=0.95,
+                                existing_email=r.get("email"),
+                                existing_phone=r.get("phone"),
+                            )
+                        )
 
         return matches
 
     def merge_leads(self, winner_id: int, loser_ids: list[int]) -> dict:
         """Merge duplicate leads - keep winner, archive losers."""
-        winner = self.client.read("crm.lead", [winner_id], fields=[
-            "name", "email_from", "phone", "partner_name", "description",
-            "expected_revenue", "contact_name",
-        ])
+        winner = self.client.read(
+            "crm.lead",
+            [winner_id],
+            fields=[
+                "name",
+                "email_from",
+                "phone",
+                "partner_name",
+                "description",
+                "expected_revenue",
+                "contact_name",
+            ],
+        )
         if not winner:
             return {"error": f"Winner lead {winner_id} not found"}
 
@@ -215,10 +236,19 @@ class DeduplicationEngine:
         merged_count = 0
 
         for loser_id in loser_ids:
-            loser = self.client.read("crm.lead", [loser_id], fields=[
-                "name", "email_from", "phone", "partner_name", "description",
-                "expected_revenue", "contact_name",
-            ])
+            loser = self.client.read(
+                "crm.lead",
+                [loser_id],
+                fields=[
+                    "name",
+                    "email_from",
+                    "phone",
+                    "partner_name",
+                    "description",
+                    "expected_revenue",
+                    "contact_name",
+                ],
+            )
             if not loser:
                 continue
             loser = loser[0]
@@ -237,7 +267,9 @@ class DeduplicationEngine:
             # Append loser description
             if loser.get("description"):
                 current_desc = winner.get("description") or ""
-                updates["description"] = f"{current_desc}\n\n--- Merged from: {loser['name']} ---\n{loser['description']}"
+                updates["description"] = (
+                    f"{current_desc}\n\n--- Merged from: {loser['name']} ---\n{loser['description']}"
+                )
 
             if updates:
                 self.client.write("crm.lead", [winner_id], updates)

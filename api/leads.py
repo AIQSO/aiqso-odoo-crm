@@ -202,9 +202,7 @@ async def bulk_ingest(
                 errors += 1
         except Exception as e:
             errors += 1
-            results.append(IngestLeadResponse(
-                success=False, message=f"Error: {e}"
-            ))
+            results.append(IngestLeadResponse(success=False, message=f"Error: {e}"))
 
     return BulkIngestResponse(
         total=len(request.leads),
@@ -269,12 +267,14 @@ async def pipeline_analytics(_key: str = Depends(require_api_key)):
         revenue = sum(float(lead.get("expected_revenue") or 0) for lead in leads)
         total_leads += count
         total_revenue += revenue
-        stage_data.append({
-            "name": stage["name"],
-            "id": stage["id"],
-            "leads": count,
-            "revenue": round(revenue, 2),
-        })
+        stage_data.append(
+            {
+                "name": stage["name"],
+                "id": stage["id"],
+                "leads": count,
+                "revenue": round(revenue, 2),
+            }
+        )
 
     return PipelineAnalyticsResponse(
         stages=stage_data,

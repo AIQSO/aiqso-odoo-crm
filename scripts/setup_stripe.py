@@ -44,7 +44,7 @@ def setup_stripe(stripe_secret_key: str, stripe_publishable_key: str) -> int:
     )
 
     if not provider_ids:
-        raise ValueError("Stripe provider module not installed. " "Install 'payment_stripe' module in Odoo first.")
+        raise ValueError("Stripe provider module not installed. Install 'payment_stripe' module in Odoo first.")
 
     provider_id = cast(int, provider_ids[0])
 
@@ -98,7 +98,7 @@ def main() -> int:
     stripe_publishable = os.environ.get("STRIPE_PUBLISHABLE_KEY")
 
     if not stripe_secret or not stripe_publishable:
-        print("ERROR: Missing required environment variables:\n" "  - STRIPE_SECRET_KEY\n" "  - STRIPE_PUBLISHABLE_KEY")
+        print("ERROR: Missing required environment variables:\n  - STRIPE_SECRET_KEY\n  - STRIPE_PUBLISHABLE_KEY")
         return 1
 
     try:

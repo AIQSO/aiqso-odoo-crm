@@ -80,6 +80,7 @@ async def sync_mercury_transactions(odoo_execute_fn=None) -> dict[str, Any]:
 
         if last_sync:
             from datetime import timedelta
+
             try:
                 last_dt = datetime.fromisoformat(last_sync["last_sync_at"])
                 since_date = last_dt - timedelta(hours=1)  # Overlap for safety
@@ -122,13 +123,15 @@ async def sync_mercury_transactions(odoo_execute_fn=None) -> dict[str, Any]:
             if is_deposit:
                 result["deposits"] += 1
                 total_deposited += amount
-                new_deposits.append({
-                    "id": txn_id,
-                    "amount": amount,
-                    "counterparty": counterparty,
-                    "date": txn_date,
-                    "account_name": account_map.get(account_id, "Mercury"),
-                })
+                new_deposits.append(
+                    {
+                        "id": txn_id,
+                        "amount": amount,
+                        "counterparty": counterparty,
+                        "date": txn_date,
+                        "account_name": account_map.get(account_id, "Mercury"),
+                    }
+                )
             else:
                 result["withdrawals"] += 1
 
@@ -175,10 +178,7 @@ async def sync_mercury_transactions(odoo_execute_fn=None) -> dict[str, Any]:
         result["completed_at"] = datetime.now().isoformat()
         result["success"] = True
 
-        logger.info(
-            f"Sync complete: {result['new_transactions']} new transactions, "
-            f"{result['reconciled']} reconciled"
-        )
+        logger.info(f"Sync complete: {result['new_transactions']} new transactions, {result['reconciled']} reconciled")
 
         # Send Slack notifications for new deposits
         if new_deposits:
@@ -204,7 +204,7 @@ async def sync_mercury_transactions(odoo_execute_fn=None) -> dict[str, Any]:
                             invoice_number=f"Invoice #{detail.get('invoice_id')}",
                             counterparty=next(
                                 (d["counterparty"] for d in new_deposits if d["id"] == detail.get("transaction_id")),
-                                "Unknown"
+                                "Unknown",
                             ),
                             match_type=detail.get("match_type", "auto"),
                             confidence=detail.get("confidence", 0.5),
@@ -257,6 +257,7 @@ async def _scheduled_sync():
     # Import Odoo connection from main module
     try:
         from main import odoo as odoo_connection
+
         odoo_execute_fn = odoo_connection.execute
     except ImportError:
         odoo_execute_fn = None

@@ -60,17 +60,13 @@ class OdooClient:
     @property
     def common(self) -> xmlrpc.client.ServerProxy:
         if self._common is None:
-            self._common = xmlrpc.client.ServerProxy(
-                f"{self.url}/xmlrpc/2/common", allow_none=True
-            )
+            self._common = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/common", allow_none=True)
         return self._common
 
     @property
     def models(self) -> xmlrpc.client.ServerProxy:
         if self._models is None:
-            self._models = xmlrpc.client.ServerProxy(
-                f"{self.url}/xmlrpc/2/object", allow_none=True
-            )
+            self._models = xmlrpc.client.ServerProxy(f"{self.url}/xmlrpc/2/object", allow_none=True)
         return self._models
 
     def _authenticate(self) -> int:
@@ -85,7 +81,7 @@ class OdooClient:
                 return int(result)
             except (ConnectionError, OSError, xmlrpc.client.ProtocolError) as e:
                 last_error = e
-                wait = 2 ** attempt
+                wait = 2**attempt
                 logger.warning("Auth attempt %d failed: %s, retrying in %ds", attempt + 1, e, wait)
                 time.sleep(wait)
         raise OdooConnectionError(f"Failed to authenticate after 3 attempts: {last_error}")
@@ -95,17 +91,19 @@ class OdooClient:
         last_error = None
         for attempt in range(3):
             try:
-                return self.models.execute_kw(
-                    self.db, self.uid, self.api_key, model, method, list(args), kwargs
-                )
+                return self.models.execute_kw(self.db, self.uid, self.api_key, model, method, list(args), kwargs)
             except xmlrpc.client.Fault:
                 raise  # Application errors are not retryable
             except (ConnectionError, OSError, xmlrpc.client.ProtocolError) as e:
                 last_error = e
-                wait = 2 ** attempt
+                wait = 2**attempt
                 logger.warning(
                     "execute(%s, %s) attempt %d failed: %s, retrying in %ds",
-                    model, method, attempt + 1, e, wait,
+                    model,
+                    method,
+                    attempt + 1,
+                    e,
+                    wait,
                 )
                 time.sleep(wait)
                 # Reset connection on failure
@@ -201,9 +199,7 @@ class OdooClient:
             existing = self.search_read("res.partner", [("email", "=", email)], fields=["id"], limit=1)
             if existing:
                 if category_ids:
-                    self.write("res.partner", [existing[0]["id"]], {
-                        "category_id": [(4, cid) for cid in category_ids]
-                    })
+                    self.write("res.partner", [existing[0]["id"]], {"category_id": [(4, cid) for cid in category_ids]})
                 return existing[0]["id"]
 
         # Search by name + company type
@@ -211,9 +207,7 @@ class OdooClient:
         existing = self.search_read("res.partner", domain, fields=["id"], limit=1)
         if existing:
             if category_ids:
-                self.write("res.partner", [existing[0]["id"]], {
-                    "category_id": [(4, cid) for cid in category_ids]
-                })
+                self.write("res.partner", [existing[0]["id"]], {"category_id": [(4, cid) for cid in category_ids]})
             return existing[0]["id"]
 
         # Create new
@@ -233,9 +227,7 @@ class OdooClient:
         values.update(extra)
         return self.create("res.partner", values)
 
-    def get_or_create_category(
-        self, name: str, parent_id: int | None = None, color: int | None = None
-    ) -> int:
+    def get_or_create_category(self, name: str, parent_id: int | None = None, color: int | None = None) -> int:
         """Find or create a partner category/tag."""
         domain: list = [("name", "=", name)]
         if parent_id:
@@ -254,9 +246,7 @@ class OdooClient:
 
     def get_pipeline_stages(self) -> list[dict[str, Any]]:
         """Get CRM pipeline stages."""
-        return self.search_read(
-            "crm.stage", [], fields=["name", "sequence"], order="sequence"
-        )
+        return self.search_read("crm.stage", [], fields=["name", "sequence"], order="sequence")
 
     def move_lead_to_stage(self, lead_id: int, stage_name: str) -> bool:
         """Move a lead to a named stage."""

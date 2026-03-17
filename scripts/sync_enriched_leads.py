@@ -317,9 +317,9 @@ class EnrichedLeadSync:
             dry_run: Show what would be done without making changes
             create_new: Create new leads in Odoo for permits not found
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("🔄 ENRICHED LEADS SYNC")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         if city:
             print(f"City Filter: {city}")
         if dry_run:
@@ -406,9 +406,9 @@ class EnrichedLeadSync:
                 print(f"   Processed {i}/{len(enriched_leads)}...")
 
         # Print summary
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("✅ SYNC COMPLETE")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"   Leads Created:       {stats['created']}")
         print(f"   Leads Updated:       {stats['synced']}")
         print(f"   Contacts Updated:    {stats['contacts_updated']}")
