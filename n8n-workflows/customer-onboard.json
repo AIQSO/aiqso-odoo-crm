@@ -18,7 +18,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://192.168.0.230:8069/xmlrpc/2/object",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [$env.ODOO_DB, $env.ODOO_UID, $env.ODOO_API_KEY, 'res.partner', 'search_read', [[['email', '=', $json.body.email]]], { fields: ['id', 'name'], limit: 1 }] }, id: 1 }) }}",
@@ -63,7 +63,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://192.168.0.230:8069/xmlrpc/2/object",
+        "url": "http://192.168.0.237:8069/xmlrpc/2/object",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service: 'object', method: 'execute_kw', args: [$env.ODOO_DB, $env.ODOO_UID, $env.ODOO_API_KEY, 'res.partner', 'create', [{ name: $json.body.name || $json.body.email, email: $json.body.email, customer_rank: 1 }]] }, id: 1 }) }}",

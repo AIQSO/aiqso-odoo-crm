@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This repository contains small, operational scripts that move lead/contact data into an Odoo 17 CRM instance:
+This repository contains small, operational scripts that move lead/contact data into an Odoo 19 CRM instance:
 
 - Import CSV lead lists into Odoo Contacts + CRM Leads.
 - Import multi-city commercial lead exports into CRM Leads.

@@ -20,7 +20,7 @@ def load_odoo_config(overrides: dict[str, Any] | None = None) -> dict[str, Any]:
       - ODOO_API_KEY
     """
     config: dict[str, Any] = {
-        "url": _getenv("ODOO_URL", "http://192.168.0.230:8069"),
+        "url": _getenv("ODOO_URL", "http://192.168.0.237:8069"),
         "db": _getenv("ODOO_DB", "aiqso_db"),
         "username": _getenv("ODOO_USERNAME", "quinn@aiqso.io"),
         "api_key": _getenv("ODOO_API_KEY", None),

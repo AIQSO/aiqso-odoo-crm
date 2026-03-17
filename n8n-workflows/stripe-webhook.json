@@ -130,7 +130,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://192.168.0.230:8069/api/create_invoice",
+        "url": "http://192.168.0.237:8069/api/create_invoice",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
@@ -159,7 +159,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "http://192.168.0.230:8069/api/mark_invoice_paid",
+        "url": "http://192.168.0.237:8069/api/mark_invoice_paid",
         "sendBody": true,
         "bodyParameters": {
           "parameters": [

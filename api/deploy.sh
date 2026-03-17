@@ -1,5 +1,5 @@
 #!/bin/bash
-# Deploy Odoo Invoice API with Mercury Bank Integration to LXC 230
+# Deploy Odoo Invoice API with Mercury Bank Integration to LXC 237
 
 set -e
 

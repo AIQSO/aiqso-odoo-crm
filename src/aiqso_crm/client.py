@@ -38,7 +38,7 @@ class OdooClient:
     @classmethod
     def from_env(cls) -> OdooClient:
         """Create client from environment variables."""
-        url = os.getenv("ODOO_URL", "http://192.168.0.230:8069")
+        url = os.getenv("ODOO_URL", "http://192.168.0.237:8069")
         db = os.getenv("ODOO_DB", "aiqso_db")
         username = os.getenv("ODOO_USERNAME", "quinn@aiqso.io")
         api_key = os.getenv("ODOO_API_KEY")

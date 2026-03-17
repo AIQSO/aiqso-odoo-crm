@@ -2,7 +2,7 @@
 """Configure Stripe payment provider in Odoo.
 
 This script enables and configures the Stripe payment provider
-in Odoo 17. It requires Stripe API keys to be provided via
+in Odoo 19. It requires Stripe API keys to be provided via
 environment variables.
 
 Usage:

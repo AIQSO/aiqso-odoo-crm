@@ -88,7 +88,7 @@
     {
       "parameters": {
         "channel": "#crm-alerts",
-        "text": "=:warning: *{{ $json.stale_count }} Stale Leads Detected*\n\nLeads with no activity in 14+ days:\n{{ $json.leads.slice(0, 10).map(l => `• ${l.name} - ${l.partner_name || 'N/A'} - $${l.expected_revenue.toLocaleString()}`).join('\\n') }}\n\n<http://192.168.0.230:8069/web#model=crm.lead&view_type=kanban|View in CRM>"
+        "text": "=:warning: *{{ $json.stale_count }} Stale Leads Detected*\n\nLeads with no activity in 14+ days:\n{{ $json.leads.slice(0, 10).map(l => `• ${l.name} - ${l.partner_name || 'N/A'} - $${l.expected_revenue.toLocaleString()}`).join('\\n') }}\n\n<http://192.168.0.237:8069/web#model=crm.lead&view_type=kanban|View in CRM>"
       },
       "name": "Notify Stale Leads",
       "type": "n8n-nodes-base.slack",

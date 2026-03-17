@@ -1,5 +1,5 @@
 site_name: aiqso-odoo-crm
-site_description: Utility scripts for importing and syncing lead data into Odoo 17 CRM via XML-RPC
+site_description: Utility scripts for importing and syncing lead data into Odoo 19 CRM via XML-RPC
 site_url: https://AIQSO.github.io/aiqso-odoo-crm/
 
 repo_name: AIQSO/aiqso-odoo-crm

@@ -39,7 +39,7 @@ class TestLoadOdooConfig:
         with mock.patch.dict(os.environ, {}, clear=True):
             config = load_odoo_config()
 
-            assert config["url"] == "http://192.168.0.230:8069"
+            assert config["url"] == "http://192.168.0.237:8069"
             assert config["db"] == "aiqso_db"
             assert config["username"] == "quinn@aiqso.io"
             assert config["api_key"] is None
@@ -74,7 +74,7 @@ class TestLoadOdooConfig:
             config = load_odoo_config(overrides={"url": None, "db": ""})
 
             # Should keep defaults, not override with None/empty
-            assert config["url"] == "http://192.168.0.230:8069"
+            assert config["url"] == "http://192.168.0.237:8069"
             assert config["db"] == "aiqso_db"
 
     def test_partial_env_vars(self):

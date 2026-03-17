@@ -6,7 +6,7 @@ This repo avoids hardcoding credentials. Configure connections via environment v
 
 Environment variables:
 
-- `ODOO_URL` (example: `http://192.168.0.230:8069`)
+- `ODOO_URL` (example: `http://192.168.0.237:8069`)
 - `ODOO_DB`
 - `ODOO_USERNAME`
 - `ODOO_API_KEY`

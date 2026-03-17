@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-Integrate Odoo 17 customer portal with AIQSO website, n8n automation, and AI services to provide a seamless customer experience for billing, service access, and support. This guide creates a production-ready CI/CD pipeline that can be built, monitored, maintained, and enhanced.
+Integrate Odoo 19 customer portal with AIQSO website, n8n automation, and AI services to provide a seamless customer experience for billing, service access, and support. This guide creates a production-ready CI/CD pipeline that can be built, monitored, maintained, and enhanced.
 
 ## Current State Assessment
 
@@ -14,7 +14,7 @@ Integrate Odoo 17 customer portal with AIQSO website, n8n automation, and AI ser
 
 | Component | Status | Location |
 |-----------|--------|----------|
-| Odoo 17 CRM | Running (147 modules) | LXC 230 (192.168.0.230:8069) |
+| Odoo 19 CRM | Running (147 modules) | LXC 237 (192.168.0.237:8069) |
 | Portal Module | Installed but unconfigured | Odoo |
 | eCommerce Module | Installed | Odoo |
 | Payment Engine | Installed (providers disabled) | Odoo |
@@ -56,7 +56,7 @@ Integrate Odoo 17 customer portal with AIQSO website, n8n automation, and AI ser
          ▼                       ▼                       ▼
 ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐
 │   Odoo CRM      │   │   Listmonk      │   │   AI Server     │
-│   (LXC 230)     │   │   (LXC 231)     │   │   (Ollama)      │
+│   (LXC 237)     │   │   (LXC 231)     │   │   (Ollama)      │
 ├─────────────────┤   ├─────────────────┤   ├─────────────────┤
 │ • Contacts      │   │ • Newsletters   │   │ • Lead Scoring  │
 │ • Leads         │   │ • Campaigns     │   │ • Chat Support  │
@@ -262,7 +262,7 @@ Add to tunnel config:
 
 ```yaml
 - hostname: portal.aiqso.io
-  service: http://192.168.0.230:8069
+  service: http://192.168.0.237:8069
 ```
 
 ## Testing

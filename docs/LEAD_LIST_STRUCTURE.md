@@ -132,8 +132,8 @@ The import script handles multiple CSV column name formats:
    - Filter contacts/leads by "Premium", "High Value", etc.
 
 ### Direct URLs
-- Contacts: `http://192.168.0.230:8069/web#model=res.partner&view_type=kanban`
-- CRM Leads: `http://192.168.0.230:8069/web#model=crm.lead&view_type=kanban`
+- Contacts: `http://192.168.0.237:8069/web#model=res.partner&view_type=kanban`
+- CRM Leads: `http://192.168.0.237:8069/web#model=crm.lead&view_type=kanban`
 
 ## Duplicate Handling
 
@@ -168,7 +168,7 @@ The import script:
 ### Connection Issues
 ```bash
 # Test Odoo connection
-curl http://192.168.0.230:8069/web/webclient/version_info
+curl http://192.168.0.237:8069/web/webclient/version_info
 ```
 
 ### API Authentication

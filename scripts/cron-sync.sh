@@ -3,7 +3,7 @@
 # Syncs enriched leads from PostgreSQL to Odoo CRM
 #
 # Install:
-#   1. Copy to /opt/odoo-sync/ on container 230
+#   1. Copy to /opt/odoo-sync/ on container 237
 #   2. Copy .env.cron with credentials (see .env.cron.example)
 #   3. chmod +x cron-sync.sh
 #

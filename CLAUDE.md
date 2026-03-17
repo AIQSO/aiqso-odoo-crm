@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is the central repository for AIQSO's Odoo 17 CRM system, containing:
+This is the central repository for AIQSO's Odoo 19 CRM system, containing:
 - Custom Python client library for Odoo XML-RPC API
 - Lead list import/export scripts
 - Infrastructure data management
@@ -15,7 +15,7 @@ This is the central repository for AIQSO's Odoo 17 CRM system, containing:
 
 | Setting | Value |
 |---------|-------|
-| **URL** | `ODOO_URL` (example: `http://192.168.0.230:8069`) |
+| **URL** | `ODOO_URL` (example: `http://192.168.0.237:8069`) |
 | **Database** | `ODOO_DB` |
 | **Username** | `ODOO_USERNAME` |
 | **API Key** | `ODOO_API_KEY` |
@@ -36,7 +36,7 @@ python3 scripts/import_lead_list.py ~/path/to/leads.csv \
     --list-name "List Name" --industry "Construction"
 
 # Test Odoo connection
-curl http://192.168.0.230:8069/web/webclient/version_info
+curl http://192.168.0.237:8069/web/webclient/version_info
 ```
 
 ## Lead List Import
@@ -147,22 +147,22 @@ lead_id = models.execute_kw(db, uid, api_key,
 
 | View | URL |
 |------|-----|
-| Contacts | http://192.168.0.230:8069/web#model=res.partner |
-| CRM Leads | http://192.168.0.230:8069/web#model=crm.lead |
-| Projects | http://192.168.0.230:8069/web#model=project.project |
+| Contacts | http://192.168.0.237:8069/web#model=res.partner |
+| CRM Leads | http://192.168.0.237:8069/web#model=crm.lead |
+| Projects | http://192.168.0.237:8069/web#model=project.project |
 
 ## Troubleshooting
 
 ### Connection Issues
 ```bash
 # Check Odoo is running
-curl http://192.168.0.230:8069/web/webclient/version_info
+curl http://192.168.0.237:8069/web/webclient/version_info
 
 # Test authentication
 python3 -c "
 import xmlrpc.client
 import os
-common = xmlrpc.client.ServerProxy('http://192.168.0.230:8069/xmlrpc/2/common')
+common = xmlrpc.client.ServerProxy('http://192.168.0.237:8069/xmlrpc/2/common')
 uid = common.authenticate(os.environ['ODOO_DB'], os.environ['ODOO_USERNAME'], os.environ['ODOO_API_KEY'], {})
 print(f'Authenticated as UID: {uid}')
 "
