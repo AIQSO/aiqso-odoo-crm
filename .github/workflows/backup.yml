@@ -36,7 +36,7 @@ jobs:
         run: |
           BACKUP_FILE="odoo_backup_$(date +%Y%m%d_%H%M%S).sql.gz"
           ssh "$PROXMOX_USER@$PROXMOX_HOST" \
-            "pct exec 230 -- pg_dump -U odoo odoo | gzip" > "/tmp/backups/$BACKUP_FILE"
+            "pct exec 237 -- pg_dump -U odoo odoo | gzip" > "/tmp/backups/$BACKUP_FILE"
           echo "Created backup: $BACKUP_FILE"
           ls -lh "/tmp/backups/$BACKUP_FILE"
 
