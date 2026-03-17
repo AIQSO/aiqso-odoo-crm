@@ -1,0 +1,187 @@
+{
+  "name": "Lead Source Health Monitor",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.71:8080/health",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Check Accela API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 200],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.237:8070/health",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Check CRM API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.234:11434/api/tags",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "name": "Check Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "functionCode": "const accela = $items('Check Accela API')[0];\nconst crm = $items('Check CRM API')[0];\nconst ollama = $items('Check Ollama')[0];\n\nconst services = [\n  { name: 'Accela ETL', status: accela.json?.status === 'ok' ? 'UP' : 'DOWN', url: '192.168.0.71:8080' },\n  { name: 'CRM API', status: crm.json?.status === 'healthy' ? 'UP' : 'DOWN', url: '192.168.0.237:8070' },\n  { name: 'Ollama AI', status: ollama.json?.models ? 'UP' : 'DOWN', url: '192.168.0.234:11434' }\n];\n\nconst allUp = services.every(s => s.status === 'UP');\n\nreturn [{\n  json: {\n    all_healthy: allUp,\n    services,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "name": "Aggregate Status",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.all_healthy }}",
+              "value2": false
+            }
+          ]
+        }
+      },
+      "name": "Any Service Down?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [920, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#infrastructure",
+        "text": "=:rotating_light: *Lead Pipeline Service Alert*\n\n{{ $json.services.filter(s => s.status === 'DOWN').map(s => `:x: *${s.name}* (${s.url}) - DOWN`).join('\\n') }}\n{{ $json.services.filter(s => s.status === 'UP').map(s => `:white_check_mark: *${s.name}* - UP`).join('\\n') }}\n\n_{{ $json.timestamp }}_"
+      },
+      "name": "Alert Down Services",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [1140, 300]
+    }
+  ],
+  "connections": {
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Check Accela API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check CRM API",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Accela API": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check CRM API": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Ollama": {
+      "main": [
+        [
+          {
+            "node": "Aggregate Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate Status": {
+      "main": [
+        [
+          {
+            "node": "Any Service Down?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any Service Down?": {
+      "main": [
+        [
+          {
+            "node": "Alert Down Services",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "Infrastructure"
+    },
+    {
+      "name": "Monitoring"
+    }
+  ]
+}

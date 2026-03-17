@@ -1,0 +1,176 @@
+{
+  "name": "CRM Daily Digest",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * 1-5"
+            }
+          ]
+        }
+      },
+      "name": "Weekday 8 AM",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.237:8070/api/leads/pipeline",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.ODOO_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "name": "Pipeline Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 200]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.237:8070/api/leads/stale",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "days",
+              "value": "7"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.ODOO_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "name": "Stale Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 400]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.71:8080/api/stats"
+      },
+      "name": "Accela Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 600],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "functionCode": "const pipeline = $items('Pipeline Stats')[0].json;\nconst stale = $items('Stale Leads')[0].json;\nconst accela = $items('Accela Stats')[0].json || {};\n\nconst pipelineText = pipeline.stages\n  .map(s => `  • *${s.name}*: ${s.leads} leads ($${s.revenue.toLocaleString()})`)\n  .join('\\n');\n\nlet message = `:sunrise: *Good Morning — CRM Daily Digest*\\n\\n`;\nmessage += `:chart_with_upwards_trend: *Pipeline Overview*\\n${pipelineText}\\n`;\nmessage += `  *Total*: ${pipeline.total_leads} leads | $${pipeline.total_revenue.toLocaleString()}\\n\\n`;\n\nif (stale.stale_count > 0) {\n  message += `:warning: *${stale.stale_count} leads need attention* (7+ days idle)\\n`;\n  const topStale = stale.leads.slice(0, 5).map(l => `  • ${l.name}`).join('\\n');\n  message += `${topStale}\\n\\n`;\n}\n\nif (accela.total_permits) {\n  message += `:construction: *Accela*: ${accela.total_permits} permits tracked, ${accela.leads_today || 0} new today\\n`;\n}\n\nmessage += `\\n<http://192.168.0.230:8069/web#model=crm.lead&view_type=kanban|Open CRM>`;\n\nreturn [{ json: { message } }];"
+      },
+      "name": "Build Digest",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [700, 400]
+    },
+    {
+      "parameters": {
+        "channel": "#crm-daily",
+        "text": "={{ $json.message }}"
+      },
+      "name": "Send to Slack",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [920, 400]
+    }
+  ],
+  "connections": {
+    "Weekday 8 AM": {
+      "main": [
+        [
+          {
+            "node": "Pipeline Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Stale Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Accela Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pipeline Stats": {
+      "main": [
+        [
+          {
+            "node": "Build Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stale Leads": {
+      "main": [
+        [
+          {
+            "node": "Build Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Accela Stats": {
+      "main": [
+        [
+          {
+            "node": "Build Digest",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Digest": {
+      "main": [
+        [
+          {
+            "node": "Send to Slack",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "CRM"
+    },
+    {
+      "name": "Daily"
+    }
+  ]
+}

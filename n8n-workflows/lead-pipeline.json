@@ -1,0 +1,171 @@
+{
+  "name": "Lead Pipeline - Ingest, Score & Notify",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.237:8070/api/leads/stale",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "days",
+              "value": "14"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.ODOO_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "name": "Check Stale Leads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.stale_count }}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "Has Stale Leads?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [660, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "http://192.168.0.237:8070/api/leads/pipeline",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "X-API-Key",
+              "value": "={{ $env.ODOO_API_KEY }}"
+            }
+          ]
+        }
+      },
+      "name": "Get Pipeline Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [440, 520]
+    },
+    {
+      "parameters": {
+        "channel": "#crm-alerts",
+        "text": "=:warning: *{{ $json.stale_count }} Stale Leads Detected*\n\nLeads with no activity in 14+ days:\n{{ $json.leads.slice(0, 10).map(l => `• ${l.name} - ${l.partner_name || 'N/A'} - $${l.expected_revenue.toLocaleString()}`).join('\\n') }}\n\n<http://192.168.0.230:8069/web#model=crm.lead&view_type=kanban|View in CRM>"
+      },
+      "name": "Notify Stale Leads",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [880, 200]
+    },
+    {
+      "parameters": {
+        "channel": "#crm-alerts",
+        "text": "=:chart_with_upwards_trend: *Daily Pipeline Report*\n\n{{ $json.stages.map(s => `• *${s.name}*: ${s.leads} leads ($${s.revenue.toLocaleString()})`).join('\\n') }}\n\n*Total*: {{ $json.total_leads }} leads | ${{ $json.total_revenue.toLocaleString() }}"
+      },
+      "name": "Pipeline Report",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [660, 520]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Check Stale Leads",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Pipeline Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Stale Leads": {
+      "main": [
+        [
+          {
+            "node": "Has Stale Leads?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Stale Leads?": {
+      "main": [
+        [
+          {
+            "node": "Notify Stale Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pipeline Stats": {
+      "main": [
+        [
+          {
+            "node": "Pipeline Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": [
+    {
+      "name": "CRM"
+    },
+    {
+      "name": "Lead Management"
+    }
+  ]
+}

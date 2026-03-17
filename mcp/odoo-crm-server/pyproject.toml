@@ -1,0 +1,14 @@
+[project]
+name = "odoo-crm-mcp-server"
+version = "1.0.0"
+description = "MCP server for AIQSO Odoo CRM operations"
+requires-python = ">=3.10"
+
+dependencies = [
+    "mcp>=1.0.0",
+    "pydantic>=2.5.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+odoo-crm-mcp = "server:main"

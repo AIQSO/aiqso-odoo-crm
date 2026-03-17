@@ -68,6 +68,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include lead management router
+try:
+    from leads import router as leads_router
+    app.include_router(leads_router)
+except ImportError:
+    pass  # leads module not available in minimal deployments
+
 # Configuration from environment
 ODOO_URL = os.getenv("ODOO_URL", "http://localhost:8069")
 ODOO_DB = os.getenv("ODOO_DB", "aiqso_db")

@@ -1,14 +1,16 @@
 [project]
 name = "aiqso-odoo-crm"
-version = "0.8.0"
-description = "Utility scripts for importing and syncing lead data into Odoo 17 CRM via XML-RPC"
+version = "0.9.0"
+description = "AIQSO Odoo CRM platform - shared client library, lead management, and integrations"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
 authors = [{ name = "AIQSO", email = "quinn@aiqso.io" }]
-keywords = ["odoo", "crm", "automation", "leads"]
+keywords = ["odoo", "crm", "automation", "leads", "mcp"]
 
 dependencies = [
+    "pydantic>=2.5.0",
+    "httpx>=0.27.0",
     "psycopg2-binary>=2.9,<3",
 ]
 
@@ -28,8 +30,8 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["scripts*"]
+where = ["src", "."]
+include = ["aiqso_crm*", "scripts*"]
 
 # ============================================================================
 # Ruff Configuration
@@ -74,9 +76,13 @@ ignore = [
     "S105",   # hardcoded passwords (test fixtures)
     "S106",   # hardcoded password argument (test fixtures)
 ]
+"mcp/**/*.py" = [
+    "S603",
+    "S607",
+]
 
 [tool.ruff.lint.isort]
-known-first-party = ["config"]
+known-first-party = ["config", "aiqso_crm"]
 
 [tool.ruff.format]
 quote-style = "double"
