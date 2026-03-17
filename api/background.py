@@ -184,11 +184,10 @@ async def sync_mercury_transactions(odoo_execute_fn=None) -> dict[str, Any]:
         if new_deposits:
             try:
                 from notifications import (
-                    notify_new_deposit,
-                    notify_reconciliation,
-                    notify_unmatched_deposit,
-                    notify_sync_summary,
                     is_slack_enabled,
+                    notify_reconciliation,
+                    notify_sync_summary,
+                    notify_unmatched_deposit,
                 )
 
                 if is_slack_enabled():
@@ -293,7 +292,7 @@ def start_scheduler():
     logger.info(f"Background scheduler started (interval: {SYNC_INTERVAL_MINUTES} minutes)")
 
     # Run initial sync after startup
-    asyncio.create_task(_initial_sync())
+    _sync_task = asyncio.create_task(_initial_sync())  # noqa: RUF006
 
 
 async def _initial_sync():

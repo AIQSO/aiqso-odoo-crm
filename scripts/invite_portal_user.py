@@ -165,7 +165,7 @@ def main() -> int:
     print()
 
     try:
-        partner_id, was_created = invite_portal_user(email, name, company)
+        _partner_id, was_created = invite_portal_user(email, name, company)
         print("\n" + "=" * 50)
         status = "created and invited" if was_created else "invited"
         print(f"  Partner {status} successfully!")
