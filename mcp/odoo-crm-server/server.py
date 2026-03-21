@@ -8,9 +8,7 @@ import os
 import sys
 from typing import Any
 
-from mcp.server import Server
-from mcp.server.stdio import stdio_server
-from mcp.types import TextContent
+from mcp.server.fastmcp import FastMCP
 
 # Add parent paths so we can import the shared library
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
@@ -24,7 +22,7 @@ from aiqso_crm.scoring import LeadScoringEngine
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("odoo-crm-mcp")
 
-server = Server("aiqso-odoo-crm")
+server = FastMCP("aiqso-odoo-crm")
 
 # Lazy-initialized singletons
 _client: OdooClient | None = None
@@ -64,12 +62,12 @@ def get_enrichment() -> OllamaEnrichmentClient:
     return _enrichment
 
 
-def _text(content: str) -> list[TextContent]:
-    return [TextContent(type="text", text=content)]
+def _text(content: str) -> str:
+    return content
 
 
-def _json_text(data: Any) -> list[TextContent]:
-    return [TextContent(type="text", text=json.dumps(data, indent=2, default=str))]
+def _json_text(data: Any) -> str:
+    return json.dumps(data, indent=2, default=str)
 
 
 # =============================================================================
@@ -84,7 +82,7 @@ async def crm_search_leads(
     source: str | None = None,
     min_revenue: float | None = None,
     limit: int = 20,
-) -> list[TextContent]:
+) -> str:
     """Search CRM leads with filters. Use query for text search, stage for pipeline stage, source for lead source."""
     client = get_client()
     domain: list = []
@@ -121,7 +119,7 @@ async def crm_search_leads(
 
 
 @server.tool()
-async def crm_get_lead(lead_id: int) -> list[TextContent]:
+async def crm_get_lead(lead_id: int) -> str:
     """Get full details of a CRM lead by ID."""
     client = get_client()
     leads = client.read("crm.lead", [lead_id])
@@ -141,7 +139,7 @@ async def crm_create_lead(
     description: str | None = None,
     source: str | None = None,
     tags: list[str] | None = None,
-) -> list[TextContent]:
+) -> str:
     """Create a new CRM lead with optional duplicate checking."""
     client = get_client()
     dedup = get_dedup()
@@ -182,7 +180,7 @@ async def crm_create_lead_force(
     phone: str | None = None,
     expected_revenue: float = 0,
     description: str | None = None,
-) -> list[TextContent]:
+) -> str:
     """Create a CRM lead without duplicate checking."""
     client = get_client()
     lead = Lead(
@@ -199,7 +197,7 @@ async def crm_create_lead_force(
 
 
 @server.tool()
-async def crm_update_lead(lead_id: int, **updates: Any) -> list[TextContent]:
+async def crm_update_lead(lead_id: int, **updates: Any) -> str:
     """Update a CRM lead. Pass field names as keyword arguments."""
     client = get_client()
     # Map friendly names to Odoo fields
@@ -222,7 +220,7 @@ async def crm_update_lead(lead_id: int, **updates: Any) -> list[TextContent]:
 
 
 @server.tool()
-async def crm_score_lead(lead_id: int) -> list[TextContent]:
+async def crm_score_lead(lead_id: int) -> str:
     """Calculate quality score for a lead."""
     client = get_client()
     scorer = get_scorer()
@@ -273,7 +271,7 @@ async def crm_score_lead(lead_id: int) -> list[TextContent]:
 
 
 @server.tool()
-async def crm_enrich_lead(lead_id: int) -> list[TextContent]:
+async def crm_enrich_lead(lead_id: int) -> str:
     """Use AI to analyze and enrich a lead with industry classification and outreach suggestions."""
     client = get_client()
     enrichment = get_enrichment()
@@ -317,7 +315,7 @@ async def crm_enrich_lead(lead_id: int) -> list[TextContent]:
 
 
 @server.tool()
-async def crm_pipeline_summary() -> list[TextContent]:
+async def crm_pipeline_summary() -> str:
     """Get pipeline summary with lead counts and revenue per stage."""
     client = get_client()
     stages = client.get_pipeline_stages()
@@ -355,7 +353,7 @@ async def crm_pipeline_summary() -> list[TextContent]:
 
 
 @server.tool()
-async def crm_move_lead_stage(lead_id: int, stage_name: str) -> list[TextContent]:
+async def crm_move_lead_stage(lead_id: int, stage_name: str) -> str:
     """Move a lead to a different pipeline stage."""
     client = get_client()
     success = client.move_lead_to_stage(lead_id, stage_name)
@@ -365,7 +363,7 @@ async def crm_move_lead_stage(lead_id: int, stage_name: str) -> list[TextContent
 
 
 @server.tool()
-async def crm_stale_leads(days: int = 30, limit: int = 50) -> list[TextContent]:
+async def crm_stale_leads(days: int = 30, limit: int = 50) -> str:
     """Find leads with no activity in the last N days."""
     client = get_client()
     from datetime import datetime, timedelta
@@ -392,7 +390,7 @@ async def crm_find_duplicates(
     email: str | None = None,
     phone: str | None = None,
     company_name: str | None = None,
-) -> list[TextContent]:
+) -> str:
     """Find potential duplicate leads by email, phone, or company name."""
     dedup = get_dedup()
     lead = Lead(
@@ -411,7 +409,7 @@ async def crm_find_duplicates(
 
 
 @server.tool()
-async def crm_merge_leads(winner_id: int, loser_ids: list[int]) -> list[TextContent]:
+async def crm_merge_leads(winner_id: int, loser_ids: list[int]) -> str:
     """Merge duplicate leads. Winner keeps data, losers are archived."""
     dedup = get_dedup()
     result = dedup.merge_leads(winner_id, loser_ids)
@@ -428,7 +426,7 @@ async def crm_search_customers(
     query: str,
     is_company: bool | None = None,
     limit: int = 20,
-) -> list[TextContent]:
+) -> str:
     """Search customers/contacts by name or email."""
     client = get_client()
     domain: list = ["|", ("name", "ilike", query), ("email", "ilike", query)]
@@ -450,7 +448,7 @@ async def crm_create_customer(
     email: str | None = None,
     phone: str | None = None,
     is_company: bool = True,
-) -> list[TextContent]:
+) -> str:
     """Create a new customer/contact."""
     client = get_client()
     partner_id = client.get_or_create_partner(
@@ -468,7 +466,7 @@ async def crm_create_customer(
 
 
 @server.tool()
-async def crm_list_tags(parent_name: str | None = None) -> list[TextContent]:
+async def crm_list_tags(parent_name: str | None = None) -> str:
     """List all CRM tags/categories, optionally filtered by parent."""
     client = get_client()
     domain: list = []
@@ -485,7 +483,7 @@ async def crm_list_tags(parent_name: str | None = None) -> list[TextContent]:
 
 
 @server.tool()
-async def crm_tag_lead(lead_id: int, tag_names: list[str]) -> list[TextContent]:
+async def crm_tag_lead(lead_id: int, tag_names: list[str]) -> str:
     """Add tags to a lead's partner. Creates tags if they don't exist."""
     client = get_client()
 
@@ -511,7 +509,7 @@ async def crm_tag_lead(lead_id: int, tag_names: list[str]) -> list[TextContent]:
 
 
 @server.tool()
-async def crm_source_performance() -> list[TextContent]:
+async def crm_source_performance() -> str:
     """Analyze lead source performance - count and revenue by source."""
     client = get_client()
 
@@ -547,7 +545,7 @@ async def crm_source_performance() -> list[TextContent]:
 
 
 @server.tool()
-async def crm_revenue_forecast() -> list[TextContent]:
+async def crm_revenue_forecast() -> str:
     """Pipeline revenue forecast by stage with weighted probabilities."""
     client = get_client()
     stage_weights = {"New": 0.1, "Qualified": 0.3, "Proposition": 0.6, "Won": 1.0}
@@ -586,7 +584,7 @@ async def crm_revenue_forecast() -> list[TextContent]:
 
 
 @server.tool()
-async def crm_lead_aging() -> list[TextContent]:
+async def crm_lead_aging() -> str:
     """Lead aging report - distribution of leads by age."""
     client = get_client()
     from datetime import datetime, timedelta
@@ -626,7 +624,7 @@ async def crm_lead_aging() -> list[TextContent]:
 
 
 @server.tool()
-async def crm_list_products(limit: int = 20) -> list[TextContent]:
+async def crm_list_products(limit: int = 20) -> str:
     """List products and services."""
     client = get_client()
     products = client.search_read(
@@ -639,7 +637,7 @@ async def crm_list_products(limit: int = 20) -> list[TextContent]:
 
 
 @server.tool()
-async def crm_create_sale_order(partner_id: int, product_ids: list[int]) -> list[TextContent]:
+async def crm_create_sale_order(partner_id: int, product_ids: list[int]) -> str:
     """Create a sales order for a customer with specified products."""
     client = get_client()
     order_vals = {
@@ -651,12 +649,439 @@ async def crm_create_sale_order(partner_id: int, product_ids: list[int]) -> list
 
 
 # =============================================================================
+# Project Management Tools
+# =============================================================================
+
+
+@server.tool()
+async def pm_list_projects(
+    limit: int = 50,
+) -> str:
+    """List all Odoo projects with task counts."""
+    client = get_client()
+    projects = client.search_read(
+        "project.project",
+        [],
+        fields=["name", "description", "task_count", "active"],
+        limit=limit,
+        order="name",
+    )
+    return _json_text({"count": len(projects), "projects": projects})
+
+
+@server.tool()
+async def pm_get_project(project_id: int) -> str:
+    """Get full details of a project by ID."""
+    client = get_client()
+    projects = client.read("project.project", [project_id])
+    if not projects:
+        return _text(f"Project {project_id} not found")
+    return _json_text(projects[0])
+
+
+@server.tool()
+async def pm_list_tasks(
+    project_name: str | None = None,
+    stage: str | None = None,
+    assignee: str | None = None,
+    priority: str | None = None,
+    tag: str | None = None,
+    limit: int = 50,
+) -> str:
+    """List project tasks with filters. Use project_name, stage, assignee, priority, or tag to filter."""
+    client = get_client()
+    domain: list = []
+
+    if project_name:
+        domain.append(("project_id.name", "ilike", project_name))
+    if stage:
+        domain.append(("stage_id.name", "=", stage))
+    if assignee:
+        domain.append(("user_ids.name", "ilike", assignee))
+    if priority:
+        prio_map = {"low": "0", "normal": "0", "high": "1", "urgent": "2"}
+        domain.append(("priority", "=", prio_map.get(priority.lower(), priority)))
+    if tag:
+        domain.append(("tag_ids.name", "ilike", tag))
+
+    tasks = client.search_read(
+        "project.task",
+        domain,
+        fields=[
+            "name",
+            "project_id",
+            "stage_id",
+            "user_ids",
+            "priority",
+            "date_deadline",
+            "tag_ids",
+            "description",
+            "create_date",
+            "write_date",
+        ],
+        limit=limit,
+        order="priority desc, date_deadline asc, create_date desc",
+    )
+    return _json_text({"count": len(tasks), "tasks": tasks})
+
+
+@server.tool()
+async def pm_get_task(task_id: int) -> str:
+    """Get full details of a task by ID."""
+    client = get_client()
+    tasks = client.read("project.task", [task_id])
+    if not tasks:
+        return _text(f"Task {task_id} not found")
+    return _json_text(tasks[0])
+
+
+@server.tool()
+async def pm_create_task(
+    name: str,
+    project_name: str,
+    description: str | None = None,
+    stage: str | None = None,
+    priority: str = "normal",
+    deadline: str | None = None,
+    tags: list[str] | None = None,
+) -> str:
+    """Create a new project task. Priority: normal, high, urgent. Deadline format: YYYY-MM-DD."""
+    client = get_client()
+
+    # Find the project
+    projects = client.search_read(
+        "project.project",
+        [("name", "ilike", project_name)],
+        fields=["id", "name"],
+        limit=1,
+    )
+    if not projects:
+        return _text(f"Project '{project_name}' not found")
+
+    project = projects[0]
+    prio_map = {"low": "0", "normal": "0", "high": "1", "urgent": "2"}
+
+    values: dict = {
+        "name": name,
+        "project_id": project["id"],
+        "priority": prio_map.get(priority.lower(), "0"),
+    }
+
+    if description:
+        values["description"] = description
+    if deadline:
+        values["date_deadline"] = deadline
+
+    if stage:
+        stages = client.search_read(
+            "project.task.type",
+            [("name", "=", stage), ("project_ids", "in", [project["id"]])],
+            fields=["id"],
+            limit=1,
+        )
+        if stages:
+            values["stage_id"] = stages[0]["id"]
+
+    if tags:
+        tag_ids = []
+        for tag_name in tags:
+            existing = client.search_read(
+                "project.tags", [("name", "=", tag_name)], fields=["id"], limit=1
+            )
+            if existing:
+                tag_ids.append(existing[0]["id"])
+            else:
+                tag_ids.append(client.create("project.tags", {"name": tag_name}))
+        values["tag_ids"] = [(6, 0, tag_ids)]
+
+    task_id = client.create("project.task", values)
+    return _json_text({
+        "success": True,
+        "task_id": task_id,
+        "project": project["name"],
+        "name": name,
+    })
+
+
+@server.tool()
+async def pm_update_task(
+    task_id: int,
+    name: str | None = None,
+    description: str | None = None,
+    stage: str | None = None,
+    priority: str | None = None,
+    deadline: str | None = None,
+    tags: list[str] | None = None,
+) -> str:
+    """Update a project task. Change name, description, stage, priority, deadline, or tags (replaces existing)."""
+    client = get_client()
+
+    tasks = client.read("project.task", [task_id], fields=["project_id"])
+    if not tasks:
+        return _text(f"Task {task_id} not found")
+
+    values: dict = {}
+    if name:
+        values["name"] = name
+    if description:
+        values["description"] = description
+    if priority:
+        prio_map = {"low": "0", "normal": "0", "high": "1", "urgent": "2"}
+        values["priority"] = prio_map.get(priority.lower(), priority)
+    if deadline:
+        values["date_deadline"] = deadline
+
+    if tags is not None:
+        tag_ids = []
+        for tag_name in tags:
+            existing = client.search_read(
+                "project.tags", [("name", "=", tag_name)], fields=["id"], limit=1
+            )
+            if existing:
+                tag_ids.append(existing[0]["id"])
+            else:
+                tag_ids.append(client.create("project.tags", {"name": tag_name}))
+        values["tag_ids"] = [(6, 0, tag_ids)]
+
+    if stage:
+        project_id = tasks[0]["project_id"][0] if tasks[0].get("project_id") else None
+        stage_domain: list = [("name", "=", stage)]
+        if project_id:
+            stage_domain.append(("project_ids", "in", [project_id]))
+        stages = client.search_read(
+            "project.task.type", stage_domain, fields=["id"], limit=1
+        )
+        if stages:
+            values["stage_id"] = stages[0]["id"]
+        else:
+            return _text(f"Stage '{stage}' not found")
+
+    if not values:
+        return _text("No fields to update")
+
+    client.write("project.task", [task_id], values)
+    return _json_text({
+        "success": True,
+        "task_id": task_id,
+        "updated_fields": list(values.keys()),
+    })
+
+
+@server.tool()
+async def pm_move_task(task_id: int, stage: str) -> str:
+    """Move a task to a different stage (e.g. 'In Progress', 'Human Review', 'Done')."""
+    return await pm_update_task(task_id, stage=stage)
+
+
+@server.tool()
+async def pm_search_tasks(
+    query: str,
+    limit: int = 20,
+) -> str:
+    """Search tasks by name or description across all projects."""
+    client = get_client()
+    tasks = client.search_read(
+        "project.task",
+        ["|", ("name", "ilike", query), ("description", "ilike", query)],
+        fields=[
+            "name",
+            "project_id",
+            "stage_id",
+            "priority",
+            "date_deadline",
+            "user_ids",
+        ],
+        limit=limit,
+        order="write_date desc",
+    )
+    return _json_text({"count": len(tasks), "query": query, "tasks": tasks})
+
+
+@server.tool()
+async def pm_project_board(project_name: str) -> str:
+    """Get a kanban-style board view of a project — tasks grouped by stage."""
+    client = get_client()
+
+    projects = client.search_read(
+        "project.project",
+        [("name", "ilike", project_name)],
+        fields=["id", "name", "type_ids"],
+        limit=1,
+    )
+    if not projects:
+        return _text(f"Project '{project_name}' not found")
+
+    project = projects[0]
+    stages = client.search_read(
+        "project.task.type",
+        [("project_ids", "in", [project["id"]])],
+        fields=["name", "sequence"],
+        order="sequence",
+    )
+
+    board: dict = {"project": project["name"], "stages": []}
+    for stage in stages:
+        tasks = client.search_read(
+            "project.task",
+            [("project_id", "=", project["id"]), ("stage_id", "=", stage["id"])],
+            fields=["name", "priority", "date_deadline", "user_ids"],
+            order="priority desc, date_deadline asc",
+        )
+        board["stages"].append({
+            "stage": stage["name"],
+            "task_count": len(tasks),
+            "tasks": tasks,
+        })
+
+    return _json_text(board)
+
+
+@server.tool()
+async def pm_list_tags(
+    query: str | None = None,
+    limit: int = 50,
+) -> str:
+    """List all project tags, optionally filtered by name."""
+    client = get_client()
+    domain: list = []
+    if query:
+        domain.append(("name", "ilike", query))
+
+    tags = client.search_read(
+        "project.tags",
+        domain,
+        fields=["name", "color"],
+        limit=limit,
+        order="name",
+    )
+    return _json_text({"count": len(tags), "tags": tags})
+
+
+@server.tool()
+async def pm_tag_task(task_id: int, tag_names: list[str]) -> str:
+    """Add tags to a project task. Creates tags if they don't exist."""
+    client = get_client()
+
+    tasks = client.read("project.task", [task_id], fields=["name"])
+    if not tasks:
+        return _text(f"Task {task_id} not found")
+
+    tag_ids = []
+    for tag_name in tag_names:
+        existing = client.search_read(
+            "project.tags", [("name", "=", tag_name)], fields=["id"], limit=1
+        )
+        if existing:
+            tag_ids.append(existing[0]["id"])
+        else:
+            tag_ids.append(client.create("project.tags", {"name": tag_name}))
+
+    # Use (4, id) to add without replacing existing tags
+    client.write("project.task", [task_id], {"tag_ids": [(4, tid) for tid in tag_ids]})
+    return _json_text({"success": True, "task_id": task_id, "tags_added": tag_names})
+
+
+@server.tool()
+async def pm_untag_task(task_id: int, tag_names: list[str]) -> str:
+    """Remove tags from a project task."""
+    client = get_client()
+
+    tasks = client.read("project.task", [task_id], fields=["name"])
+    if not tasks:
+        return _text(f"Task {task_id} not found")
+
+    removed = []
+    for tag_name in tag_names:
+        existing = client.search_read(
+            "project.tags", [("name", "=", tag_name)], fields=["id"], limit=1
+        )
+        if existing:
+            # Use (3, id) to unlink without deleting the tag
+            client.write("project.task", [task_id], {"tag_ids": [(3, existing[0]["id"])]})
+            removed.append(tag_name)
+
+    return _json_text({"success": True, "task_id": task_id, "tags_removed": removed})
+
+
+@server.tool()
+async def pm_task_stages() -> str:
+    """List all available task stages."""
+    client = get_client()
+    stages = client.search_read(
+        "project.task.type",
+        [],
+        fields=["name", "sequence", "fold", "project_ids"],
+        order="sequence",
+    )
+    return _json_text({"count": len(stages), "stages": stages})
+
+
+@server.tool()
+async def pm_my_tasks(
+    stage: str | None = None,
+    limit: int = 30,
+) -> str:
+    """List tasks assigned to the current user, optionally filtered by stage."""
+    client = get_client()
+    domain: list = [("user_ids", "in", [client.uid])]
+    if stage:
+        domain.append(("stage_id.name", "=", stage))
+
+    tasks = client.search_read(
+        "project.task",
+        domain,
+        fields=[
+            "name",
+            "project_id",
+            "stage_id",
+            "priority",
+            "date_deadline",
+            "tag_ids",
+        ],
+        limit=limit,
+        order="priority desc, date_deadline asc",
+    )
+    return _json_text({"count": len(tasks), "tasks": tasks})
+
+
+@server.tool()
+async def pm_sprint_summary() -> str:
+    """Get a summary of all active tasks across all projects, grouped by stage."""
+    client = get_client()
+
+    stages = client.search_read(
+        "project.task.type",
+        [("fold", "=", False)],
+        fields=["name", "sequence"],
+        order="sequence",
+    )
+
+    seen_names: set = set()
+    unique_stages = []
+    for s in stages:
+        if s["name"] not in seen_names:
+            seen_names.add(s["name"])
+            unique_stages.append(s)
+
+    summary: dict = {"stages": [], "total_tasks": 0}
+    for stage in unique_stages:
+        count = client.search_count(
+            "project.task",
+            [("stage_id.name", "=", stage["name"])],
+        )
+        summary["stages"].append({"stage": stage["name"], "count": count})
+        summary["total_tasks"] += count
+
+    return _json_text(summary)
+
+
+# =============================================================================
 # Health Check
 # =============================================================================
 
 
 @server.tool()
-async def crm_health_check() -> list[TextContent]:
+async def crm_health_check() -> str:
     """Check connectivity to Odoo and Ollama."""
     result: dict[str, Any] = {}
 
@@ -678,10 +1103,5 @@ async def crm_health_check() -> list[TextContent]:
     return _json_text(result)
 
 
-async def main():
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(read_stream, write_stream, server.create_initialization_options())
-
-
 if __name__ == "__main__":
-    asyncio.run(main())
+    server.run()
