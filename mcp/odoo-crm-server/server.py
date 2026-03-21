@@ -1076,6 +1076,27 @@ async def pm_sprint_summary() -> str:
 
 
 # =============================================================================
+# Task Archiving
+# =============================================================================
+
+
+@server.tool()
+async def pm_archive_task(task_ids: list[int]) -> str:
+    """Archive (deactivate) tasks. They won't appear in task counts or views but can be restored."""
+    client = get_client()
+    client.write("project.task", task_ids, {"active": False})
+    return _json_text({"success": True, "archived": task_ids})
+
+
+@server.tool()
+async def pm_unarchive_task(task_ids: list[int]) -> str:
+    """Restore previously archived tasks."""
+    client = get_client()
+    client.write("project.task", task_ids, {"active": True})
+    return _json_text({"success": True, "restored": task_ids})
+
+
+# =============================================================================
 # Time Tracking Tools
 # =============================================================================
 
