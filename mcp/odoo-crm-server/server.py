@@ -1076,6 +1076,133 @@ async def pm_sprint_summary() -> str:
 
 
 # =============================================================================
+# Time Tracking Tools
+# =============================================================================
+
+
+@server.tool()
+async def pm_log_time(
+    task_id: int,
+    hours: float,
+    description: str = "",
+    date: str | None = None,
+) -> str:
+    """Log time spent on a task. Date format: YYYY-MM-DD (defaults to today)."""
+    client = get_client()
+
+    tasks = client.read("project.task", [task_id], fields=["name", "project_id"])
+    if not tasks:
+        return _text(f"Task {task_id} not found")
+
+    task = tasks[0]
+    project_id = task["project_id"][0] if task.get("project_id") else False
+
+    from datetime import date as date_type
+
+    values: dict[str, Any] = {
+        "task_id": task_id,
+        "project_id": project_id,
+        "unit_amount": hours,
+        "name": description or task["name"],
+        "date": date or date_type.today().isoformat(),
+    }
+
+    entry_id = client.create("account.analytic.line", values)
+    return _json_text({
+        "success": True,
+        "timesheet_id": entry_id,
+        "task_id": task_id,
+        "hours": hours,
+        "date": values["date"],
+    })
+
+
+@server.tool()
+async def pm_task_timesheet(
+    task_id: int,
+    limit: int = 50,
+) -> str:
+    """List time entries for a task."""
+    client = get_client()
+
+    entries = client.search_read(
+        "account.analytic.line",
+        [("task_id", "=", task_id)],
+        fields=["name", "unit_amount", "date", "user_id"],
+        limit=limit,
+        order="date desc",
+    )
+
+    total_hours = sum(float(e.get("unit_amount") or 0) for e in entries)
+    return _json_text({
+        "task_id": task_id,
+        "total_hours": round(total_hours, 2),
+        "entry_count": len(entries),
+        "entries": entries,
+    })
+
+
+@server.tool()
+async def pm_project_timesheet(
+    project_name: str,
+    limit: int = 100,
+) -> str:
+    """Get time tracking summary for a project — total hours per task."""
+    client = get_client()
+
+    projects = client.search_read(
+        "project.project",
+        [("name", "ilike", project_name)],
+        fields=["id", "name"],
+        limit=1,
+    )
+    if not projects:
+        return _text(f"Project '{project_name}' not found")
+
+    project = projects[0]
+    entries = client.search_read(
+        "account.analytic.line",
+        [("project_id", "=", project["id"])],
+        fields=["task_id", "name", "unit_amount", "date", "user_id"],
+        limit=limit,
+        order="date desc",
+    )
+
+    # Group by task
+    tasks: dict[str, dict] = {}
+    total_hours = 0
+    for entry in entries:
+        task_name = entry["task_id"][1] if entry.get("task_id") else "No Task"
+        task_key = str(entry.get("task_id", [0])[0]) if entry.get("task_id") else "0"
+        hours = float(entry.get("unit_amount") or 0)
+        total_hours += hours
+
+        if task_key not in tasks:
+            tasks[task_key] = {"task": task_name, "hours": 0, "entries": 0}
+        tasks[task_key]["hours"] = round(tasks[task_key]["hours"] + hours, 2)
+        tasks[task_key]["entries"] += 1
+
+    return _json_text({
+        "project": project["name"],
+        "total_hours": round(total_hours, 2),
+        "tasks": list(tasks.values()),
+    })
+
+
+@server.tool()
+async def pm_delete_timesheet(entry_id: int) -> str:
+    """Delete a timesheet entry by ID."""
+    client = get_client()
+
+    entries = client.read("account.analytic.line", [entry_id], fields=["name", "task_id", "unit_amount"])
+    if not entries:
+        return _text(f"Timesheet entry {entry_id} not found")
+
+    client.unlink("account.analytic.line", [entry_id])
+    return _json_text({"success": True, "deleted_id": entry_id})
+
+
+# =============================================================================
 # Health Check
 # =============================================================================
 
